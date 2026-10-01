@@ -121,11 +121,15 @@ gasto_otorgamiento = diferencia * gasto_otorgamiento_pct
 monto_financiado = diferencia
 tasa_mensual = tna / 12
 
-cuota_pura = (
-    monto_financiado
-    * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
-    / ((1 + tasa_mensual) ** cuotas - 1)
-)
+if tasa_mensual == 0:
+    # Sin interés: cuota directa
+    cuota_pura = monto_financiado / cuotas
+else:
+    cuota_pura = (
+        monto_financiado
+        * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
+        / ((1 + tasa_mensual) ** cuotas - 1)
+    )
 
 deuda = monto_financiado
 interes_inicial = deuda * tasa_mensual
