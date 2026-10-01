@@ -121,8 +121,12 @@ gasto_otorgamiento = diferencia * gasto_otorgamiento_pct
 monto_financiado = diferencia
 tasa_mensual = tna / 12
 
+# Manejar casos borde
+if monto_financiado <= 0:
+    st.error("⚠️ El anticipo es mayor o igual al total a cobrar. No hay monto para financiar.")
+    st.stop()
+
 if tasa_mensual == 0:
-    # Sin interés: cuota directa
     cuota_pura = monto_financiado / cuotas
 else:
     cuota_pura = (
@@ -143,7 +147,7 @@ for i in range(1, int(cuotas) + 1):
     deuda -= capital
     if i == int(cuotas):
         ultima_cuota = cuota_pura + interes * iva
-
+        
 debe_poner = anticipo + gasto_otorgamiento
 
 # ===== RESULTADOS =====
