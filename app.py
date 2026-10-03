@@ -1,6 +1,6 @@
 import streamlit as st
 
-# ===== CONFIGURACIÓN (PRIMERO) =====
+# ===== CONFIGURACIÓN (DEBE SER LO PRIMERO) =====
 st.set_page_config(
     page_title="Cotizador",
     page_icon=None,
@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 from auth import inicializar_auth, obtener_rol
-from roles import ROLES, nombre_rol
+from roles import nombre_rol
 
 # ===== INICIALIZAR AUTH =====
 resultado = inicializar_auth()
@@ -43,9 +43,12 @@ if authentication_status is None:
 rol = obtener_rol(username, df_usuarios)
 
 if rol is None:
-    st.error(f"El usuario {username} no tiene un rol asignado. Contactá al administrador.")
+    st.error(f"El usuario {username} no tiene un rol asignado.")
     authenticator.logout("Cerrar sesión", location="sidebar")
     st.stop()
+
+# Guardar rol en session_state para usarlo en las páginas
+st.session_state["_rol"] = rol
 
 # ===== SIDEBAR =====
 with st.sidebar:
@@ -54,26 +57,22 @@ with st.sidebar:
     st.markdown("---")
 
 # ===== NAVEGACIÓN SEGÚN ROL =====
-paginas = []
+paginas = [
+    st.Page("pages/1_cotizador.py", title="Cotizador"),
+]
 
-# Todos pueden cotizar
-paginas.append(st.Page("pages/1_cotizador.py", title="Cotizador", icon=None))
-
-# Supervisor y admin
 if rol in ["supervisor", "admin"]:
-    paginas.append(st.Page("pages/2_autorizaciones.py", title="Autorizaciones", icon=None))
+    paginas.append(st.Page("pages/2_autorizaciones.py", title="Autorizaciones"))
 
-# Solo admin
 if rol == "admin":
-    paginas.append(st.Page("pages/3_usuarios.py", title="Usuarios", icon=None))
+    paginas.append(st.Page("pages/3_usuarios.py", title="Usuarios"))
 
-# Supervisor y admin
 if rol in ["supervisor", "admin"]:
-    paginas.append(st.Page("pages/4_configuracion.py", title="Configuración", icon=None))
+    paginas.append(st.Page("pages/4_configuracion.py", title="Configuración"))
 
-# ===== LOGOUT EN SIDEBAR =====
+# ===== LOGOUT =====
 authenticator.logout("Cerrar sesión", location="sidebar")
 
-# ===== RENDERIZAR NAVEGACIÓN =====
+# ===== RENDERIZAR =====
 pg = st.navigation(paginas)
 pg.run()
