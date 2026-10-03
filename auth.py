@@ -12,7 +12,7 @@ import bcrypt
 URL_USUARIOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=2019645833"
 
 
-@st.cache_data(ttl=0)
+@st.cache_data(ttl=300)
 def cargar_usuarios():
     try:
         df = pd.read_csv(URL_USUARIOS)
