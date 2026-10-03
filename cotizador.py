@@ -1,27 +1,19 @@
 """
 Motor de cálculo del cotizador.
-Funciones puras, sin dependencias de Streamlit.
+Funciones puras, sin Streamlit.
 """
 
 
 def calcular_gasto_otorgamiento(diferencia, comision_vendedor, iva=0.21):
-    """
-    Calcula el gasto de otorgamiento.
-    Regla de negocio: comision × (1 + IVA) + 2%
-    """
+    """Gasto de otorgamiento = comision × (1 + IVA) + 2%"""
     porcentaje = comision_vendedor * (1 + iva) + 0.02
     monto = diferencia * porcentaje
     return monto, porcentaje
 
 
 def calcular_cuota_pura(monto_financiado, cuotas, tna):
-    """
-    Calcula la cuota pura (PMT clásico).
-    Maneja el caso TNA = 0 sin romper.
-    """
-    if monto_financiado <= 0:
-        return 0
-    if cuotas <= 0:
+    """PMT clásico. Maneja TNA=0."""
+    if monto_financiado <= 0 or cuotas <= 0:
         return 0
 
     tasa_mensual = tna / 12
@@ -34,21 +26,16 @@ def calcular_cuota_pura(monto_financiado, cuotas, tna):
 
 
 def calcular_primera_y_ultima_cuota(monto_financiado, cuotas, tna, iva=0.21):
-    """
-    Calcula la primera y última cuota incluyendo IVA sobre el interés.
-    Devuelve (primera_cuota, ultima_cuota).
-    """
+    """Devuelve (primera_cuota, ultima_cuota) con IVA s/interés."""
     if monto_financiado <= 0 or cuotas <= 0:
         return 0, 0
 
     tasa_mensual = tna / 12
     cuota_pura = calcular_cuota_pura(monto_financiado, cuotas, tna)
 
-    # Primera cuota
     interes_inicial = monto_financiado * tasa_mensual
     primera_cuota = cuota_pura + interes_inicial * iva
 
-    # Última cuota: simular amortización completa
     deuda = monto_financiado
     ultima_cuota = 0
     for i in range(1, int(cuotas) + 1):
@@ -62,9 +49,7 @@ def calcular_primera_y_ultima_cuota(monto_financiado, cuotas, tna, iva=0.21):
 
 
 def generar_tabla_amortizacion(monto_financiado, cuotas, tna, iva=0.21):
-    """
-    Devuelve una lista de diccionarios con la amortización cuota por cuota.
-    """
+    """Lista de dicts con amortización cuota por cuota."""
     if monto_financiado <= 0 or cuotas <= 0:
         return []
 
@@ -102,9 +87,7 @@ def cotizar_completo(
     comision_vendedor,
     iva=0.21,
 ):
-    """
-    Realiza el cálculo completo y devuelve un diccionario con todos los resultados.
-    """
+    """Cálculo completo. Devuelve dict con todos los resultados."""
     total_a_cobrar = precio_vehiculo + gastos
     diferencia = total_a_cobrar - anticipo
 
