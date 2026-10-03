@@ -35,11 +35,19 @@ st.title("🚗 Cotizador de Autos")
 st.markdown("Motor de cuotas — Etapa 5")
 st.markdown("---")
 
-# ===== SI HAY ERROR AL CARGAR =====
-if error_carga:
-    st.error(f"⚠️ No se pudieron cargar los datos del Sheet: {error_carga}")
-    st.info("Verificá que la hoja esté compartida como 'Cualquier persona con el enlace → Lector'.")
-    st.stop()
+# ===== SI HAY ERROR AL CARGAR (modo degradado) =====
+modo_manual = error_carga is not None
+if modo_manual:
+    st.warning(
+        f"⚠️ No se pudieron cargar los datos del Sheet ({error_carga}). "
+        "Usando valores por defecto (modo manual)."
+    )
+    # Crear DataFrame vacío para que no rompa el resto
+    df_datos = pd.DataFrame(columns=[
+        "marca", "modelo", "version", "codigo", "etiqueta",
+        "precio_lista", "bonif", "precio_autogenerali",
+        "flete", "alistamiento", "patentamiento", "sellado"
+    ])
 
 # ===== SELECTOR DE VEHÍCULO =====
 st.sidebar.header("🚙 Selección del Vehículo")
