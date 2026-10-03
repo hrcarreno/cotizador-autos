@@ -59,7 +59,10 @@ df_datos["etiqueta"] = (
     df_datos["version"].astype(str)
 )
 
-opciones = ["— Elegir manualmente —"] + sorted(df_datos["etiqueta"].unique().tolist())
+if modo_manual or df_datos.empty:
+    opciones = ["— Elegir manualmente —"]
+else:
+    opciones = ["— Elegir manualmente —"] + sorted(df_datos["etiqueta"].unique().tolist())
 seleccion = st.sidebar.selectbox("Modelo", opciones)
 
 # Valores por defecto si no hay selección
