@@ -9,14 +9,11 @@ import pandas as pd
 import bcrypt
 
 
-# ===== URL DE LA HOJA USUARIOS =====
-# ⚠️ IMPORTANTE: reemplazá TU_GID_USUARIOS por el GID real de la pestaña USUARIOS
 URL_USUARIOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=2019645833"
 
 
 @st.cache_data(ttl=300)
 def cargar_usuarios():
-    """Carga los usuarios desde el Sheet."""
     try:
         df = pd.read_csv(URL_USUARIOS)
         df = df.fillna("")
@@ -26,29 +23,23 @@ def cargar_usuarios():
 
 
 def construir_credentials(df):
-    """Convierte el DataFrame al formato de Streamlit-Authenticator."""
     credentials = {"usernames": {}}
-
     for _, row in df.iterrows():
         activo = str(row.get("activo", "TRUE")).upper() == "TRUE"
         if not activo:
             continue
-
         usuario = str(row.get("usuario", "")).strip()
         if not usuario:
             continue
-
         credentials["usernames"][usuario] = {
             "name": str(row.get("nombre", usuario)),
             "password": str(row.get("password_hash", "")),
             "role": str(row.get("rol", "vendedor")),
         }
-
     return credentials
 
 
 def inicializar_auth():
-    """Inicializa el autenticador. Devuelve (authenticator, df_usuarios) o None."""
     df_usuarios, error = cargar_usuarios()
 
     if error:
@@ -77,7 +68,6 @@ def inicializar_auth():
 
 
 def obtener_rol(usuario, df_usuarios):
-    """Devuelve el rol del usuario."""
     if df_usuarios is None:
         return None
     fila = df_usuarios[df_usuarios["usuario"] == usuario]
@@ -87,5 +77,4 @@ def obtener_rol(usuario, df_usuarios):
 
 
 def hashear_password(password):
-    """Genera el hash de una contraseña (útil para gestión de usuarios)."""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
