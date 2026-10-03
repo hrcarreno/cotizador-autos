@@ -1,7 +1,5 @@
 import streamlit as st
-import pandas as pd
 
-# ===== VALIDAR LOGIN Y ROL =====
 if not st.session_state.get("authentication_status"):
     st.error("Debés iniciar sesión.")
     st.stop()
@@ -14,7 +12,24 @@ if rol not in ["supervisor", "admin"]:
 st.title("Configuración")
 st.caption("Parámetros del sistema")
 
-# ===== DÓLAR AGENCIA (supervisor + admin) =====
+# ===== TEMA =====
+st.markdown("### Tema visual")
+temas_disponibles = ["Ambar Oscuro", "Azul Oscuro", "Claro"]
+tema_actual = st.session_state.get("tema_actual", "Ambar Oscuro")
+tema_elegido = st.selectbox(
+    "Tema",
+    temas_disponibles,
+    index=temas_disponibles.index(tema_actual),
+)
+
+if tema_elegido != tema_actual:
+    st.session_state.tema_actual = tema_elegido
+    st.rerun()
+
+st.caption(f"Tema actual: **{tema_elegido}**")
+
+# ===== DÓLAR AGENCIA =====
+st.markdown("---")
 st.markdown("### Dólar Agencia")
 
 if "dolar_agencia" not in st.session_state:
@@ -34,8 +49,8 @@ if dolar != st.session_state.dolar_agencia:
 
 st.caption(f"Valor actual: **${st.session_state.dolar_agencia}**")
 
-# ===== CONFIGURACIÓN AVANZADA (solo admin) =====
+# ===== CONFIGURACIÓN AVANZADA =====
 if rol == "admin":
     st.markdown("---")
     st.markdown("### Configuración avanzada")
-    st.info("🚧 Próximamente: edición de IVA, comisiones, temas y colores.")
+    st.info("Próximamente: edición de IVA, comisiones, temas y colores personalizados.")
