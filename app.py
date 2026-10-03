@@ -8,15 +8,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# ===== URL DATOS_LIMPIOS =====
+# ===== URL DATOS_LIMPIOS (¡NO TIPEAR A MANO!) =====
 URL_DATOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=200943046"
 
-# ===== CARGA DE DATOS (con caché para no leer siempre) =====
-@st.cache_data(ttl=600)  # cachea 10 minutos
+# ===== CARGA DE DATOS =====
+@st.cache_data(ttl=600)
 def cargar_datos():
     try:
         df = pd.read_csv(URL_DATOS)
-        # Normalizar columnas numéricas por las dudas
         columnas_numericas = [
             "precio_lista", "bonif", "precio_autogenerali",
             "flete", "alistamiento", "patentamiento", "sellado"
@@ -35,29 +34,44 @@ st.title("🚗 Cotizador de Autos")
 st.markdown("Motor de cuotas — Etapa 5")
 st.markdown("---")
 
-# ===== SI HAY ERROR AL CARGAR =====
-if error_carga:
-    st.error(f"⚠️ No se pudieron cargar los datos del Sheet: {error_carga}")
-    st.info("Verificá que la hoja esté compartida como 'Cualquier persona con el enlace → Lector'.")
-    st.stop()
+# ===== MODO DEGRADADO (si el Sheet falla, sigue funcionando) =====
+modo_manual = error_carga is not None
+if modo_manual:
+    st.warning(
+        f"⚠️ No se pudieron cargar los datos del Sheet ({error_carga}). "
+        "Usando valores por defecto (modo manual)."
+    )
+    df_datos = pd.DataFrame(columns=[
+        "marca", "modelo", "version", "codigo", "etiqueta",
+        "precio_lista", "bonif", "precio_autogenerali",
+        "flete", "alistamiento", "patentamiento", "sellado"
+    ])
+else:
+    df_datos["etiqueta"] = (
+        df_datos["marca"].astype(str) + " " +
+        df_datos["modelo"].astype(str) + " " +
+        df_datos["version"].astype(str)
+    )
 
 # ===== SELECTOR DE VEHÍCULO =====
 st.sidebar.header("🚙 Selección del Vehículo")
 
-# Crear etiqueta legible
-df_datos["etiqueta"] = (
-    df_datos["marca"].astype(str) + " " +
-    df_datos["modelo"].astype(str) + " " +
-    df_datos["version"].astype(str)
-)
+if modo_manual or df_datos.empty:
+    opciones = ["— Elegir manualmente —"]
+else:
+    opciones = ["— Elegir manualmente —"] + sorted(df_datos["etiqueta"].unique().tolist())
 
-opciones = ["— Elegir manualmente —"] + sorted(df_datos["etiqueta"].unique().tolist())
 seleccion = st.sidebar.selectbox("Modelo", opciones)
 
-# Valores por defecto si no hay selección
-if seleccion != "— Elegir manualmente —":
+# Valores por defecto según selección
+if seleccion != "— Elegir manualmente —" and not modo_manual:
     fila = df_datos[df_datos["etiqueta"] == seleccion].iloc[0]
-    precio_default = int(fila["precio_lista"])
+    # Usar precio_autogenerali si existe, si no precio_lista
+    if "precio_autogenerali" in fila and fila["precio_autogenerali"] > 0:
+        precio_default = int(fila["precio_autogenerali"])
+    else:
+        precio_default = int(fila["precio_lista"])
+
     gastos_default = int(
         fila.get("flete", 0) +
         fila.get("alistamiento", 0) +
@@ -74,39 +88,22 @@ else:
 st.sidebar.header("⚙️ Parámetros")
 
 precio_vehiculo = st.sidebar.number_input(
-    "Precio del Vehículo",
-    value=precio_default,
-    step=10_000,
-    format="%d"
+    "Precio del Vehículo", value=precio_default, step=10_000, format="%d"
 )
-
 gastos = st.sidebar.number_input(
-    "Gastos (flete, patentamiento, etc.)",
-    value=gastos_default,
-    step=10_000,
-    format="%d"
+    "Gastos (flete, patentamiento, etc.)", value=gastos_default, step=10_000, format="%d"
 )
-
 anticipo = st.sidebar.number_input(
-    "Anticipo",
-    value=5_000_000,
-    step=10_000,
-    format="%d"
+    "Anticipo", value=5_000_000, step=10_000, format="%d"
 )
-
 cuotas = st.sidebar.number_input(
-    "Cantidad de Cuotas",
-    value=36, step=1, min_value=1, max_value=120
+    "Cantidad de Cuotas", value=36, step=1, min_value=1, max_value=120
 )
-
 tna = st.sidebar.number_input(
-    "TNA (Tasa Nominal Anual)",
-    value=0.60, step=0.01, format="%.2f"
+    "TNA (Tasa Nominal Anual)", value=0.60, step=0.01, format="%.2f"
 )
-
 comision_vendedor = st.sidebar.number_input(
-    "Comisión Vendedor (oculta)",
-    value=0.10, step=0.01, format="%.2f"
+    "Comisión Vendedor (oculta)", value=0.10, step=0.01, format="%.2f"
 )
 
 # ===== CONSTANTES =====
@@ -121,11 +118,19 @@ gasto_otorgamiento = diferencia * gasto_otorgamiento_pct
 monto_financiado = diferencia
 tasa_mensual = tna / 12
 
-cuota_pura = (
-    monto_financiado
-    * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
-    / ((1 + tasa_mensual) ** cuotas - 1)
-)
+# --- CASOS BORDE ---
+if monto_financiado <= 0:
+    st.error("⚠️ El anticipo es mayor o igual al total a cobrar. No hay monto para financiar.")
+    st.stop()
+
+if tasa_mensual == 0:
+    cuota_pura = monto_financiado / cuotas
+else:
+    cuota_pura = (
+        monto_financiado
+        * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
+        / ((1 + tasa_mensual) ** cuotas - 1)
+    )
 
 deuda = monto_financiado
 interes_inicial = deuda * tasa_mensual
@@ -199,7 +204,8 @@ with st.expander("📌 Valores de referencia (Argo Drive 1.3 MT)"):
     - **Debe poner:** $8.460.628
     """)
 
-# ===== DEBUG (solo si el usuario lo pide) =====
-with st.expander("🔧 Debug — columnas del Sheet"):
-    st.write("Columnas detectadas:", list(df_datos.columns))
-    st.dataframe(df_datos.head(10))
+# ===== DEBUG =====
+if not modo_manual:
+    with st.expander("🔧 Debug — columnas del Sheet"):
+        st.write("Columnas detectadas:", list(df_datos.columns))
+        st.dataframe(df_datos.head(10))
