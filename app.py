@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 # ===== URL DATOS_LIMPIOS =====
-URL_DATOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=200943046"
+URL_DATOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCd18MFED6d8p6imGSk/export?format=csv&gid=200943046"
 
 # ===== CARGA DE DATOS (con caché para no leer siempre) =====
 @st.cache_data(ttl=600)  # cachea 10 minutos
@@ -121,19 +121,11 @@ gasto_otorgamiento = diferencia * gasto_otorgamiento_pct
 monto_financiado = diferencia
 tasa_mensual = tna / 12
 
-# Manejar casos borde
-if monto_financiado <= 0:
-    st.error("⚠️ El anticipo es mayor o igual al total a cobrar. No hay monto para financiar.")
-    st.stop()
-
-if tasa_mensual == 0:
-    cuota_pura = monto_financiado / cuotas
-else:
-    cuota_pura = (
-        monto_financiado
-        * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
-        / ((1 + tasa_mensual) ** cuotas - 1)
-    )
+cuota_pura = (
+    monto_financiado
+    * (tasa_mensual * (1 + tasa_mensual) ** cuotas)
+    / ((1 + tasa_mensual) ** cuotas - 1)
+)
 
 deuda = monto_financiado
 interes_inicial = deuda * tasa_mensual
@@ -147,7 +139,7 @@ for i in range(1, int(cuotas) + 1):
     deuda -= capital
     if i == int(cuotas):
         ultima_cuota = cuota_pura + interes * iva
-        
+
 debe_poner = anticipo + gasto_otorgamiento
 
 # ===== RESULTADOS =====
