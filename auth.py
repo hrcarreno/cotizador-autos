@@ -1,6 +1,6 @@
 """
 Sistema de autenticación con Streamlit-Authenticator.
-Lee usuarios desde el Sheet USUARIOS.
+Lee usuarios desde la hoja USUARIOS del Sheet.
 """
 
 import streamlit as st
@@ -10,6 +10,7 @@ import bcrypt
 
 
 # ===== URL DE LA HOJA USUARIOS =====
+# ⚠️ IMPORTANTE: reemplazá TU_GID_USUARIOS por el GID real de la pestaña USUARIOS
 URL_USUARIOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=2019645833"
 
 
@@ -25,14 +26,10 @@ def cargar_usuarios():
 
 
 def construir_credentials(df):
-    """
-    Convierte el DataFrame de usuarios al formato que espera
-    Streamlit-Authenticator.
-    """
+    """Convierte el DataFrame al formato de Streamlit-Authenticator."""
     credentials = {"usernames": {}}
 
     for _, row in df.iterrows():
-        # Solo usuarios activos
         activo = str(row.get("activo", "TRUE")).upper() == "TRUE"
         if not activo:
             continue
@@ -51,25 +48,23 @@ def construir_credentials(df):
 
 
 def inicializar_auth():
-    """
-    Inicializa el sistema de autenticación.
-    Devuelve (authenticator, nombre, authentication_status, username) o None si falla.
-    """
+    """Inicializa el autenticador. Devuelve (authenticator, df_usuarios) o None."""
     df_usuarios, error = cargar_usuarios()
 
     if error:
         st.error(f"No se pudo cargar la lista de usuarios: {error}")
-        return None
+        st.info("Verificá que la hoja USUARIOS esté compartida como 'Cualquier persona con el enlace → Lector'.")
+        st.stop()
 
     if df_usuarios is None or df_usuarios.empty:
         st.error("No hay usuarios cargados en el sistema.")
-        return None
+        st.stop()
 
     credentials = construir_credentials(df_usuarios)
 
     if not credentials["usernames"]:
-        st.error("No hay usuarios activos en el sistema. Contactá al administrador.")
-        return None
+        st.error("No hay usuarios activos. Contactá al administrador.")
+        st.stop()
 
     authenticator = stauth.Authenticate(
         credentials,
@@ -92,5 +87,5 @@ def obtener_rol(usuario, df_usuarios):
 
 
 def hashear_password(password):
-    """Genera el hash de una contraseña. Útil para la gestión de usuarios."""
+    """Genera el hash de una contraseña (útil para gestión de usuarios)."""
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
