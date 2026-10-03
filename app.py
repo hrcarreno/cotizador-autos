@@ -9,8 +9,7 @@ st.set_page_config(
 )
 
 # ===== URL DATOS_LIMPIOS =====
-https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=200943046
-
+URL_DATOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCd18MFED6d8p6imGSk/export?format=csv&gid=200943046"
 # ===== CARGA DE DATOS (con caché para no leer siempre) =====
 @st.cache_data(ttl=600)  # cachea 10 minutos
 def cargar_datos():
