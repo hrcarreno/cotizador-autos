@@ -10,7 +10,7 @@ import bcrypt
 
 
 # ===== URL DE LA HOJA USUARIOS =====
-URL_USUARIOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=0"
+URL_USUARIOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=2019645833"
 
 
 @st.cache_data(ttl=300)
