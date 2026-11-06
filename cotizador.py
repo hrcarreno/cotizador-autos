@@ -42,16 +42,11 @@ LINEAS = [
 def calcular_frances(monto, tna, meses):
     if monto <= 0: return {"first": 0, "last": 0, "sum": 0}
     i = tna / 1200
-    if i == 0:
-        pura = monto / meses
-    else:
-        pura = monto * i / (1 - math.pow(1 + i, -meses))
-    
+    pura = monto * i / (1 - math.pow(1 + i, -meses)) if i > 0 else monto / meses
     deuda = monto
     sum_cuotas = 0
     first = 0
     last = 0
-    
     for k in range(1, meses + 1):
         interes = deuda * i
         if k == meses:
@@ -60,13 +55,11 @@ def calcular_frances(monto, tna, meses):
         else:
             amort = pura - interes
             cuota = pura + (interes * 0.21)
-        
         if k == 1: first = cuota
         last = cuota
         sum_cuotas += cuota
         deuda -= amort
         if deuda < 0: deuda = 0
-        
     return {"first": first, "last": last, "sum": sum_cuotas}
 
 def generar_codigo_disfrazado(monto):
@@ -78,13 +71,10 @@ def evaluar_linea(linea, plazo_data, dif_ars, cot_ars, anticipo_ars, ex_conce, q
     plazo, tna, quebranto, tope = plazo_data
     ltv_pct = linea.get("ltv", [100])[0] if linea.get("ltv") else None
     tope_final = min(tope or float('inf'), (ltv_pct / 100) * cot_ars if ltv_pct else float('inf'))
-    
     q_pct = (quebranto * 1.21) if (linea["k"] != "conv" or qr) else 0
     gp_pct = q_pct + ex_conce
-    
     gasto = dif_ars * (gp_pct / 100)
     fr = calcular_frances(dif_ars, tna, plazo)
-    
     return {
         "linea": linea, "plazo": plazo, "tna": tna, "quebranto": quebranto,
         "tope": tope_final, "gasto_pct": gp_pct, "gasto_ars": gasto,
