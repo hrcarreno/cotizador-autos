@@ -24,7 +24,7 @@ def procesar_pedido_ia(prompt):
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.8-flash',
             contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
         )
         json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
