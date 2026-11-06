@@ -1,15 +1,19 @@
 import streamlit as st
 import json
 import re
-from google import genai
+from openai import OpenAI
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
 st.set_page_config(page_title="Cotizador BYD", layout="wide")
 
-# --- CONFIGURACIÓN DE GEMINI ---
+# --- CONFIGURACIÓN DE GROQ ---
 try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    client = genai.Client(api_key=API_KEY)
+    # Groq usa la misma sintaxis que OpenAI
+    API_KEY = st.secrets["GROQ_API_KEY"]
+    client = OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=API_KEY
+    )
     ia_activa = True
 except Exception as e:
     ia_activa = False
@@ -19,16 +23,21 @@ if "datos_ia" not in st.session_state:
 
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
-    system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto y devolvé un JSON estricto.
-    Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string: cuota/inicial/costo)."""
+    system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto del vendedor y devolvé un JSON estricto.
+    Claves permitidas: "modelo" (string), "anticipo" (entero en pesos, "10 palos" son 10000000), "usado" (entero en pesos), "prioridad" (string: cuota/inicial/costo).
+    Si no se menciona algo, devolver null. No agregues texto extra, solo el JSON."""
     
     try:
-        response = client.models.generate_content(
-            model='gemini-3.8-flash',
-            contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={ "type": "json_object" }
         )
-        json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
-        return json.loads(json_str)
+        # Groq devuelve el JSON listo, no hace falta regex
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
         st.error(f"Error de IA: {e}")
         return None
@@ -48,7 +57,7 @@ with st.sidebar:
                 else:
                     st.error("No entendí. Reformulá.")
     else:
-        st.info("Para usar la IA, configurá GEMINI_API_KEY en los Secrets.")
+        st.info("Para usar la IA, configurá GROQ_API_KEY en los Secrets.")
 
 st.title("Cotizador BYD 0 km")
 col1, col2 = st.columns(2)
