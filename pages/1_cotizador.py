@@ -34,7 +34,7 @@ def procesar_pedido_ia(prompt):
     try:
         # Usamos el modelo más estable de Groq
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-120b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
