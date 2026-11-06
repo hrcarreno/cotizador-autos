@@ -92,15 +92,20 @@ with col1:
     nombres = [m["nombre"] for m in MODELOS]
     
     # Selección automática del modelo si la IA lo detectó
-    idx_mod = 0
     if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
         mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
         for i, n in enumerate(nombres):
             if mod_ia in n.lower():
-                idx_mod = i
+                # Forzamos a Streamlit a actualizar el selector
+                st.session_state["select_modelo"] = nombres[i]
+                # Borramos el dato de la IA para que no vuelva a forzar en el próximo clic
+                st.session_state.datos_ia["modelo"] = None 
                 break
                 
-    mod_sel = st.selectbox("Modelo", nombres, index=idx_mod)
+    if "select_modelo" not in st.session_state:
+        st.session_state["select_modelo"] = nombres[0]
+
+    mod_sel = st.selectbox("Modelo", nombres, key="select_modelo")
     dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
     es_usd = dm["moneda"] == "USD"
     
