@@ -1,8 +1,7 @@
 import streamlit as st
-import pandas as pd
-from google import genai
 import json
 import re
+from google import genai
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
 st.set_page_config(page_title="Cotizador BYD", layout="wide")
@@ -10,9 +9,10 @@ st.set_page_config(page_title="Cotizador BYD", layout="wide")
 # --- CONFIGURACIÓN DE GEMINI ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY)
+    # Inicializamos el cliente de la nueva librería google-genai
+    client = genai.Client(api_key=API_KEY)
     ia_activa = True
-except:
+except Exception as e:
     ia_activa = False
 
 # --- ESTADO DE LA SESIÓN ---
@@ -22,14 +22,26 @@ if "datos_ia" not in st.session_state:
 # --- FUNCIÓN PARA LA IA ---
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
-client = genai.Client(api_key=API_KEY)
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
-)
+    
+    system_prompt = """Sos un asistente de ventas de autos BYD. Tu única tarea es extraer datos del texto del vendedor y devolverlos en un JSON estricto.
+    Claves permitidas:
+    - "modelo": (string, buscar en la lista de modelos)
+    - "anticipo": (número entero en pesos, si el cliente dice "10 palos", es 10000000)
+    - "usado": (número entero en pesos)
+    - "prioridad": (string: "cuota", "inicial" o "costo")
+    Si no se menciona algo, devolver null.
+    """
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
+        )
+        # Extraemos el JSON de la respuesta
         json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
         return json.loads(json_str)
-    except:
+    except Exception as e:
+        st.error(f"Error de la IA: {e}")
         return None
 
 # --- BARRA LATERAL: ASISTENTE ---
