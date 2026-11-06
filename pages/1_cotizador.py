@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import re
-import google.generativeai as genai
+from google import genai
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
 st.set_page_config(page_title="Cotizador BYD", layout="wide")
@@ -9,9 +9,9 @@ st.set_page_config(page_title="Cotizador BYD", layout="wide")
 # --- CONFIGURACIÓN DE GEMINI ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY)
+    client = genai.Client(api_key=API_KEY)
     ia_activa = True
-except Exception:
+except Exception as e:
     ia_activa = False
 
 if "datos_ia" not in st.session_state:
@@ -19,12 +19,14 @@ if "datos_ia" not in st.session_state:
 
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
+    system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto y devolvé un JSON estricto.
+    Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string: cuota/inicial/costo)."""
+    
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto y devolvé un JSON estricto.
-        Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string: cuota/inicial/costo)."""
-        
-        response = model.generate_content(f"{system_prompt}\n\nTexto: {prompt}")
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
+        )
         json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
         return json.loads(json_str)
     except Exception as e:
@@ -49,7 +51,6 @@ with st.sidebar:
         st.info("Para usar la IA, configurá GEMINI_API_KEY en los Secrets.")
 
 st.title("Cotizador BYD 0 km")
-
 col1, col2 = st.columns(2)
 
 with col1:
