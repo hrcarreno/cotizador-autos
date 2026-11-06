@@ -1,227 +1,193 @@
 import streamlit as st
 import pandas as pd
-from cotizador import cotizar_completo, generar_tabla_amortizacion
-from codigo_disfrazado import generar_codigo_disfrazado
+import google.generativeai as genai
+import json
+import re
+from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
-# ===== VALIDAR LOGIN =====
-if not st.session_state.get("authentication_status"):
-    st.error("Debés iniciar sesión para ver esta página.")
-    st.stop()
+st.set_page_config(page_title="Cotizador BYD", layout="wide")
 
-# ===== TEMAS DISPONIBLES =====
-TEMAS = {
-    "Ambar Oscuro": {
-        "bg": "#0E1117", "card": "#1A1D24", "border": "#2A2E38",
-        "accent": "#F59E0B", "text": "#FAFAFA", "text_sec": "#8B92A0",
-    },
-    "Azul Oscuro": {
-        "bg": "#0E1117", "card": "#1A1D24", "border": "#2A2E38",
-        "accent": "#4A9EFF", "text": "#FAFAFA", "text_sec": "#8B92A0",
-    },
-    "Claro": {
-        "bg": "#F5F7FA", "card": "#FFFFFF", "border": "#E2E8F0",
-        "accent": "#D97706", "text": "#1A202C", "text_sec": "#718096",
-    },
-}
+# --- CONFIGURACIÓN DE GEMINI ---
+try:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=API_KEY)
+    ia_activa = True
+except:
+    ia_activa = False
 
-# ===== TEMA ACTUAL =====
-if "tema_actual" not in st.session_state:
-    st.session_state.tema_actual = "Ambar Oscuro"
-T = TEMAS[st.session_state.tema_actual]
+# --- ESTADO DE LA SESIÓN ---
+if "datos_ia" not in st.session_state:
+    st.session_state.datos_ia = None
 
-# ===== CSS =====
-st.markdown(f"""
-<style>
-    .stApp {{ background-color: {T['bg']}; }}
-    section[data-testid="stSidebar"] {{
-        background-color: {T['card']};
-        border-right: 1px solid {T['border']};
-    }}
-    .stApp, .stMarkdown, p, span, label {{ color: {T['text']} !important; }}
-    h1, h2, h3, h4 {{
-        color: {T['text']} !important;
-        font-weight: 600 !important;
-        letter-spacing: -0.02em;
-    }}
-    div[data-testid="stMetric"] {{
-        background-color: {T['card']};
-        border: 1px solid {T['border']};
-        border-radius: 12px;
-        padding: 20px 22px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-    }}
-    div[data-testid="stMetricLabel"] {{
-        color: {T['text_sec']} !important;
-        font-size: 0.78rem !important;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }}
-    div[data-testid="stMetricValue"] {{
-        color: {T['text']} !important;
-        font-size: 1.8rem !important;
-        font-weight: 600 !important;
-    }}
-    .codigo-disfrazado {{
-        background-color: {T['card']};
-        border: 1px solid {T['border']};
-        border-left: 3px solid {T['accent']};
-        border-radius: 8px;
-        padding: 12px 16px;
-        font-family: monospace;
-        font-size: 1.05rem;
-        color: {T['accent']} !important;
-        letter-spacing: 0.15em;
-        font-weight: 600;
-    }}
-    .codigo-label {{
-        font-size: 0.7rem;
-        color: {T['text_sec']};
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-bottom: 4px;
-    }}
-    hr {{ border-color: {T['border']} !important; margin: 1.5rem 0 !important; }}
-</style>
-""", unsafe_allow_html=True)
-
-# ===== HEADER =====
-st.markdown(f"""
-<div style="border-bottom: 1px solid {T['border']}; padding-bottom: 1rem; margin-bottom: 2rem;">
-    <div style="font-size: 1.6rem; font-weight: 700; color: {T['text']}; margin: 0;">Cotizador</div>
-    <div style="font-size: 0.85rem; color: {T['text_sec']}; margin-top: 0.25rem;">
-        Sistema de cotización de vehículos
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ===== URL DATOS_LIMPIOS =====
-URL_DATOS = "https://docs.google.com/spreadsheets/d/1838duFdovU2D_i4huwpntXYiCdi8MFED6Fd8p6imGSk/export?format=csv&gid=200943046"
-
-# ===== CARGAR DATOS =====
-@st.cache_data(ttl=600)
-def cargar_datos():
+# --- FUNCIÓN PARA LA IA ---
+def procesar_pedido_ia(prompt):
+    if not ia_activa: return None
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    system_prompt = """Sos un asistente de ventas de autos BYD. Tu única tarea es extraer datos del texto del vendedor y devolverlos en un JSON estricto.
+    Claves permitidas:
+    - "modelo": (string, buscar en la lista de modelos)
+    - "anticipo": (número entero en pesos, si el cliente dice "10 palos", es 10000000)
+    - "usado": (número entero en pesos)
+    - "prioridad": (string: "cuota", "inicial" o "costo")
+    Si no se menciona algo, devolver null.
+    """
     try:
-        df = pd.read_csv(URL_DATOS)
-        columnas_numericas = [
-            "precio_lista", "bonif", "precio_autogenerali",
-            "flete", "alistamiento", "patentamiento", "sellado",
-        ]
-        for col in columnas_numericas:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        return df, None
-    except Exception as e:
-        return None, str(e)
+        response = model.generate_content(f"{system_prompt}\n\nTexto del vendedor: {prompt}")
+        json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
+        return json.loads(json_str)
+    except:
+        return None
 
-
-df_datos, error_carga = cargar_datos()
-modo_manual = error_carga is not None
-
-# ===== SIDEBAR: SELECCIÓN =====
+# --- BARRA LATERAL: ASISTENTE ---
 with st.sidebar:
-    st.markdown("### Vehículo")
-
-    if modo_manual or df_datos.empty:
-        marcas = ["Todas"]
-        modelos_filtrados = []
+    st.header("🤖 Asistente IA")
+    if ia_activa:
+        st.write("Contale qué pide el cliente.")
+        prompt_ia = st.chat_input("Ej: Quiere una Song Pro, entrega 10 palos...")
+        if prompt_ia:
+            with st.spinner("Procesando..."):
+                datos = procesar_pedido_ia(prompt_ia)
+                if datos:
+                    st.session_state.datos_ia = datos
+                    st.success("¡Datos cargados! Revisá el formulario.")
+                    st.rerun()
+                else:
+                    st.error("No entendí. Probá de nuevo.")
     else:
-        df_datos["etiqueta"] = (
-            df_datos["marca"].astype(str) + " " +
-            df_datos["modelo"].astype(str) + " " +
-            df_datos["version"].astype(str)
-        )
-        marcas = ["Todas"] + sorted(df_datos["marca"].dropna().unique().tolist())
+        st.info("Para usar la IA, configurá GEMINI_API_KEY en los Secrets.")
 
-    if modo_manual:
-        st.warning("Modo manual (no se pudieron cargar los datos).")
-        seleccion = "— Elegir manualmente —"
-        marca_sel = "Todas"
-    else:
-        marca_sel = st.selectbox("Marca", marcas)
-        if marca_sel == "Todas":
-            df_filtrado = df_datos
+# --- INTERFAZ PRINCIPAL ---
+st.title("Cotizador BYD 0 km")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("1. Vehículo")
+    nombres_modelos = [m["nombre"] for m in MODELOS]
+    
+    index_mod = 0
+    if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
+        mod_ia = st.session_state.datos_ia["modelo"].lower()
+        for i, n in enumerate(nombres_modelos):
+            if mod_ia in n.lower():
+                index_mod = i
+                break
+                
+    modelo_sel = st.selectbox("Modelo", nombres_modelos, index=index_mod)
+    datos_mod = next(m for m in MODELOS if m["nombre"] == modelo_sel)
+    es_usd = datos_mod["moneda"] == "USD"
+    
+    st.markdown("---")
+    aplicar_bonif = st.checkbox("Aplicar bonificación manual")
+    bonif_monto = 0
+    if aplicar_bonif:
+        bonif_monto = st.number_input(f"Monto bonif. ({datos_mod['moneda']})", min_value=0, step=1000)
+        if bonif_monto > 0:
+            st.code(f"Código: {generar_codigo_disfrazado(bonif_monto)}", language=None)
+    
+    patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
+    
+    precio_cot = datos_mod["precio"] - bonif_monto
+    pat_monto = datos_mod["pat"] if patenta == "Concesionario" else 0
+    total_abonar = precio_cot + datos_mod["fyf"] + pat_monto
+    
+    moneda_simbolo = "u$s" if es_usd else "$"
+    st.info(f"**Total a abonar:** {moneda_simbolo} {total_abonar:,.0f}")
+
+    st.subheader("2. Forma de pago")
+    tc = st.number_input("Dólar agencia ($)", min_value=0, step=10, value=1450)
+    
+    anticipo_ars = 0
+    if st.checkbox("Entrego anticipo"):
+        col_ant1, col_ant2 = st.columns(2)
+        with col_ant1:
+            ant_pesos = st.number_input("En pesos", min_value=0, step=100000)
+        with col_ant2:
+            ant_usd = st.number_input("En dólares", min_value=0, step=100)
+        anticipo_ars = ant_pesos + (ant_usd * tc)
+        
+    usado_ars = 0
+    if st.checkbox("Entrego vehículo en parte de pago"):
+        col_us1, col_us2 = st.columns(2)
+        with col_us1:
+            tasacion = st.number_input("Tasación", min_value=0, step=100000)
+        with col_us2:
+            moneda_usado = st.selectbox("Moneda", ["Pesos", "Dólares"])
+        if moneda_usado == "Dólares":
+            usado_ars = tasacion * tc
         else:
-            df_filtrado = df_datos[df_datos["marca"] == marca_sel]
-        modelos_filtrados = ["— Elegir manualmente —"] + sorted(
-            df_filtrado["etiqueta"].dropna().unique().tolist()
-        )
-        seleccion = st.selectbox("Modelo", modelos_filtrados)
+            usado_ars = tasacion
 
-    # Valores por defecto
-    if seleccion != "— Elegir manualmente —" and not modo_manual:
-        fila = df_datos[df_datos["etiqueta"] == seleccion].iloc[0]
-        if "precio_autogenerali" in fila and fila["precio_autogenerali"] > 0:
-            precio_default = int(fila["precio_autogenerali"])
-        else:
-            precio_default = int(fila["precio_lista"])
-        lista_default = int(fila.get("precio_lista", precio_default))
-        gastos_default = int(
-            fila.get("flete", 0) + fila.get("alistamiento", 0) +
-            fila.get("patentamiento", 0) + fila.get("sellado", 0)
-        )
-        descuento_max = lista_default - precio_default
-        codigo_dis = generar_codigo_disfrazado(descuento_max) if descuento_max > 0 else ""
-        if codigo_dis:
-            st.markdown(f"""
-            <div class="codigo-label">Código</div>
-            <div class="codigo-disfrazado">{codigo_dis}</div>
-            """, unsafe_allow_html=True)
+    total_ars = total_abonar * tc if es_usd else total_abonar
+    dif_ars = total_ars - anticipo_ars - usado_ars
+    
+    if dif_ars < 0:
+        st.warning(f"Saldo a favor: $ {abs(dif_ars):,.0f}")
     else:
-        precio_default = 26_160_990
-        gastos_default = 3_382_470
+        st.info(f"Diferencia a financiar: $ {dif_ars:,.0f}")
 
-    st.markdown("### Parámetros")
-    precio_vehiculo = st.number_input("Precio", value=precio_default, step=10_000, format="%d")
-    gastos = st.number_input("Gastos", value=gastos_default, step=10_000, format="%d")
-    anticipo = st.number_input("Anticipo", value=5_000_000, step=10_000, format="%d")
-    cuotas = st.number_input("Cuotas", value=36, step=1, min_value=1, max_value=120)
-    tna = st.number_input("TNA", value=0.60, step=0.01, format="%.2f")
-    comision_vendedor = st.number_input("Comisión vendedor", value=0.10, step=0.01, format="%.2f")
+with col2:
+    st.subheader("3. Financiación Banco Santander")
+    quiere_financiar = st.checkbox("Financiar la diferencia")
+    
+    if quiere_financiar and dif_ars > 0:
+        lineas_validas = []
+        for l in LINEAS:
+            if "aplica" in l:
+                if any(app in datos_mod["nombre"] for app in l["aplica"]):
+                    lineas_validas.append(l)
+            else:
+                lineas_validas.append(l)
+                
+        nombres_lineas = [l["n"] for l in lineas_validas]
+        linea_sel_nombre = st.selectbox("Línea", nombres_lineas)
+        linea_sel = next(l for l in lineas_validas if l["n"] == linea_sel_nombre)
+        
+        plazos_disp = [r[0] for r in linea_sel["r"]]
+        plazo_sel = st.radio("Plazo (meses)", plazos_disp, horizontal=True)
+        
+        ex_conce = st.number_input("Adicional concesionario (%)", min_value=0.0, value=0.0, step=0.1)
+        qr = st.checkbox("Cobrar quebranto aunque BYD lo reintegre")
+        
+        plazo_data = next(r for r in linea_sel["r"] if r[0] == plazo_sel)
+        res = evaluar_linea(linea_sel, plazo_data, dif_ars, total_ars, anticipo_ars, ex_conce, qr)
+        
+        if not res["alcanza"]:
+            st.error(f"Línea no alcanza. Financia hasta $ {res['tope']:,.0f}. Faltan $ {res['falta']:,.0f}.")
+        else:
+            st.markdown(f"### Cuota: $ {res['cuota']:,.0f}")
+            if res["uva"]:
+                st.caption("Cuota UVA inicial (se ajusta por inflación)")
+            else:
+                st.caption(f"Última cuota: $ {res['cuota_fin']:,.0f}")
+                
+            st.write(f"Gasto otorgamiento ({res['gasto_pct']:.2f}%): $ {res['gasto_ars']:,.0f}")
+            st.write(f"**Debés poner:** $ {res['poner_ars']:,.0f}")
 
-# ===== CÁLCULO =====
-resultado = cotizar_completo(
-    precio_vehiculo=precio_vehiculo,
-    gastos=gastos,
-    anticipo=anticipo,
-    cuotas=cuotas,
-    tna=tna,
-    comision_vendedor=comision_vendedor,
-)
-
-if resultado["monto_financiado"] <= 0:
-    st.error("El anticipo es mayor o igual al total a cobrar.")
-    st.stop()
-
-# ===== RESULTADOS =====
-st.markdown("### Resumen")
-
-c1, c2, c3 = st.columns(3)
-with c1:
-    st.metric("Total a cobrar", f"${resultado['total_a_cobrar']:,.0f}".replace(",", "."))
-with c2:
-    st.metric(f"Gasto otorgamiento ({resultado['gasto_otorgamiento_pct']*100:.2f}%)",
-              f"${resultado['gasto_otorgamiento']:,.0f}".replace(",", "."))
-with c3:
-    st.metric("Debe poner", f"${resultado['debe_poner']:,.0f}".replace(",", "."))
-
-st.markdown("")
-c4, c5, c6 = st.columns(3)
-with c4:
-    st.metric("Cuota pura", f"${resultado['cuota_pura']:,.0f}".replace(",", "."))
-with c5:
-    st.metric("Primera cuota", f"${resultado['primera_cuota']:,.0f}".replace(",", "."))
-with c6:
-    st.metric("Última cuota", f"${resultado['ultima_cuota']:,.0f}".replace(",", "."))
-
-st.markdown("---")
-
-with st.expander("Ver plan de cuotas completo"):
-    tabla = generar_tabla_amortizacion(
-        monto_financiado=resultado["monto_financiado"],
-        cuotas=cuotas,
-        tna=tna,
-    )
-    if tabla:
-        df_tabla = pd.DataFrame(tabla)
-        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+        st.markdown("### 🏆 Mejores opciones")
+        prioridad = st.selectbox("Priorizar:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
+        
+        opciones = []
+        for l in lineas_validas:
+            for r in l["r"]:
+                o = evaluar_linea(l, r, dif_ars, total_ars, anticipo_ars, ex_conce, qr)
+                if o["alcanza"]:
+                    opciones.append(o)
+                    
+        if prioridad == "Cuota más baja":
+            opciones.sort(key=lambda x: x["cuota"])
+        elif prioridad == "Poner menos al inicio":
+            opciones.sort(key=lambda x: x["poner_ars"])
+        else:
+            opciones.sort(key=lambda x: x["costo_fin"])
+            
+        for i, opt in enumerate(opciones[:3]):
+            with st.expander(f"{i+1}. {opt['linea']['n']} ({opt['plazo']} meses) - ${opt['cuota']:,.0f}/mes"):
+                st.write(f"TNA: {opt['tna']}%")
+                st.write(f"Debés poner: $ {opt['poner_ars']:,.0f}")
+                st.write(f"Costo financiero total: $ {opt['costo_fin']:,.0f}")
+    
+    st.markdown("---")
+    st.subheader("4. Mensaje para WhatsApp")
+    msg = f"Hola! Te paso la cotización de tu BYD {modelo_sel}.\nTotal: {moneda_simbolo} {total_abonar:,.0f}\nCualquier duda avisame."
+    st.text_area("Mensaje", msg, height=100)
