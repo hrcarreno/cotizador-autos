@@ -22,17 +22,11 @@ if "datos_ia" not in st.session_state:
 # --- FUNCIÓN PARA LA IA ---
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    system_prompt = """Sos un asistente de ventas de autos BYD. Tu única tarea es extraer datos del texto del vendedor y devolverlos en un JSON estricto.
-    Claves permitidas:
-    - "modelo": (string, buscar en la lista de modelos)
-    - "anticipo": (número entero en pesos, si el cliente dice "10 palos", es 10000000)
-    - "usado": (número entero en pesos)
-    - "prioridad": (string: "cuota", "inicial" o "costo")
-    Si no se menciona algo, devolver null.
-    """
-    try:
-        response = model.generate_content(f"{system_prompt}\n\nTexto del vendedor: {prompt}")
+client = genai.Client(api_key=API_KEY)
+response = client.models.generate_content(
+    model='gemini-2.5-flash',
+    contents=f"{system_prompt}\n\nTexto del vendedor: {prompt}"
+)
         json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
         return json.loads(json_str)
     except:
