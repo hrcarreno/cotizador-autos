@@ -8,14 +8,13 @@ st.set_page_config(page_title="Cotizador BYD", layout="wide")
 
 # --- CONFIGURACIÓN DE GROQ ---
 try:
-    # Groq usa la misma sintaxis que OpenAI
     API_KEY = st.secrets["GROQ_API_KEY"]
     client = OpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=API_KEY
     )
     ia_activa = True
-except Exception as e:
+except Exception:
     ia_activa = False
 
 if "datos_ia" not in st.session_state:
@@ -23,23 +22,36 @@ if "datos_ia" not in st.session_state:
 
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
-    system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto del vendedor y devolvé un JSON estricto.
-    Claves permitidas: "modelo" (string), "anticipo" (entero en pesos, "10 palos" son 10000000), "usado" (entero en pesos), "prioridad" (string: cuota/inicial/costo).
-    Si no se menciona algo, devolver null. No agregues texto extra, solo el JSON."""
+    
+    system_prompt = """Sos un asistente de ventas de autos BYD. Extraé datos del texto y devolvé SOLO un JSON válido (sin bloques de código markdown, sin texto extra).
+    Claves permitidas: 
+    - "modelo" (string, buscar coincidencia con: Dolphin Mini, Yuan Pro, Atto 2, Song Pro, Seal U, SHARK, TI7, Seal 5)
+    - "anticipo" (entero en pesos. "10 palos" = 10000000)
+    - "usado" (entero en pesos)
+    - "prioridad" (string: "cuota", "inicial" o "costo")
+    Si no se menciona algo, devolver null."""
     
     try:
+        # Usamos el modelo más estable de Groq
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
-            response_format={ "type": "json_object" }
+            temperature=0.1
         )
-        # Groq devuelve el JSON listo, no hace falta regex
-        return json.loads(response.choices[0].message.content)
+        
+        texto_respuesta = response.choices[0].message.content
+        # Limpiamos el texto por si la IA agregó markdown (```json ... ```)
+        json_limpio = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', texto_respuesta, flags=re.DOTALL)
+        json_limpio = json_limpio[json_limpio.find('{'):json_limpio.rfind('}')+1]
+        
+        datos = json.loads(json_limpio)
+        return datos
+        
     except Exception as e:
-        st.error(f"Error de IA: {e}")
+        st.error(f"Detalle del error: {e}\n\nRespuesta cruda de la IA: {texto_respuesta if 'texto_respuesta' in locals() else 'No hubo respuesta'}")
         return None
 
 with st.sidebar:
@@ -52,10 +64,9 @@ with st.sidebar:
                 datos = procesar_pedido_ia(prompt_ia)
                 if datos:
                     st.session_state.datos_ia = datos
-                    st.success("¡Datos cargados!")
+                    st.success("¡Datos cargados! Revisá el formulario abajo.")
                     st.rerun()
-                else:
-                    st.error("No entendí. Reformulá.")
+                # Si falla, el error salta en la pantalla
     else:
         st.info("Para usar la IA, configurá GROQ_API_KEY en los Secrets.")
 
@@ -68,7 +79,7 @@ with col1:
     
     idx_mod = 0
     if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
-        mod_ia = st.session_state.datos_ia["modelo"].lower()
+        mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
         for i, n in enumerate(nombres):
             if mod_ia in n.lower():
                 idx_mod = i
