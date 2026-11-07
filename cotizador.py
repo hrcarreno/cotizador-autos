@@ -1,17 +1,18 @@
 import math
 
+# [nombre, moneda, precio_lista, bonif, fyf, patentamiento]
 MODELOS = [
-    {"nombre": "Dolphin Mini EV GL", "moneda": "ARS", "precio": 36200000, "fyf": 800000, "pat": 2381960},
-    {"nombre": "Dolphin Mini EV GS", "moneda": "ARS", "precio": 37700000, "fyf": 800000, "pat": 2480660},
-    {"nombre": "Yuan Pro EV GL", "moneda": "USD", "precio": 30990, "fyf": 500, "pat": 2169},
-    {"nombre": "Yuan Pro EV GS", "moneda": "USD", "precio": 31990, "fyf": 500, "pat": 2239},
-    {"nombre": "Atto 2 DM-I GS", "moneda": "USD", "precio": 32291, "fyf": 500, "pat": 2147},
-    {"nombre": "Song Pro DM-I GL", "moneda": "USD", "precio": 33716, "fyf": 500, "pat": 2242},
-    {"nombre": "Song Pro DM-I GS", "moneda": "USD", "precio": 35616, "fyf": 500, "pat": 2368},
-    {"nombre": "Seal U DM-I GS", "moneda": "USD", "precio": 47990, "fyf": 800, "pat": 3359},
-    {"nombre": "SHARK DM-O GS", "moneda": "USD", "precio": 59990, "fyf": 800, "pat": 3863},
-    {"nombre": "TI7 GS", "moneda": "USD", "precio": 65500, "fyf": 800, "pat": 4585},
-    {"nombre": "Seal 5", "moneda": "USD", "precio": 31990, "fyf": 500, "pat": 2127}
+    {"nombre": "Dolphin Mini EV GL", "moneda": "ARS", "precio": 36200000, "bonif": 2172000, "fyf": 800000, "pat": 2381960},
+    {"nombre": "Dolphin Mini EV GS", "moneda": "ARS", "precio": 37700000, "bonif": 2262000, "fyf": 800000, "pat": 2480660},
+    {"nombre": "Yuan Pro EV GL", "moneda": "USD", "precio": 30990, "bonif": 0, "fyf": 500, "pat": 2169},
+    {"nombre": "Yuan Pro EV GS", "moneda": "USD", "precio": 31990, "bonif": 0, "fyf": 500, "pat": 2239},
+    {"nombre": "Atto 2 DM-I GS", "moneda": "USD", "precio": 32291, "bonif": 1615, "fyf": 500, "pat": 2147},
+    {"nombre": "Song Pro DM-I GL", "moneda": "USD", "precio": 33716, "bonif": 1686, "fyf": 500, "pat": 2242},
+    {"nombre": "Song Pro DM-I GS", "moneda": "USD", "precio": 35616, "bonif": 1781, "fyf": 500, "pat": 2368},
+    {"nombre": "Seal U DM-I GS", "moneda": "USD", "precio": 47990, "bonif": 0, "fyf": 800, "pat": 3359},
+    {"nombre": "SHARK DM-O GS", "moneda": "USD", "precio": 59990, "bonif": 4799, "fyf": 800, "pat": 3863},
+    {"nombre": "TI7 GS", "moneda": "USD", "precio": 65500, "bonif": 0, "fyf": 800, "pat": 4585},
+    {"nombre": "Seal 5", "moneda": "USD", "precio": 31990, "bonif": 1600, "fyf": 500, "pat": 2127}
 ]
 
 LINEAS = [
