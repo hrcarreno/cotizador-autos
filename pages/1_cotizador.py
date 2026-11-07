@@ -58,6 +58,7 @@ with st.sidebar:
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
 
+# --- DIVIDIMOS EN DOS COLUMNAS SOLO PARA LA PARTE SUPERIOR ---
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
@@ -144,79 +145,85 @@ with col2:
     else:
         st.info(f"**Diferencia a Financiar:** $ {dif:,.0f}")
 
-    st.markdown("### 4. Financiación")
-    financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
+# --- A PARTIR DE ACÁ, OCUPA TODO EL ANCHO (SIN COLUMNAS) ---
+st.markdown("---")
+st.header("4. Financiación")
+financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 
-    res_final = None
+res_final = None
 
-    if financiar and dif > 0:
-        l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
+if financiar and dif > 0:
+    l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
+    
+    opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True) for l in l_validas for r in l["r"]]
+    opts = [o for o in opts if o["alcanza"]]
+    
+    # Selector de prioridad (ahora tiene espacio de sobra)
+    pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
+    
+    if not opts:
+        st.error(f"Ninguna línea alcanza a financiar los ${dif:,.0f}. Supera el tope o el LTV permitido.")
+    else:
+        if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
+        elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
+        else: opts.sort(key=lambda x: x["costo_fin"])
         
-        # CORRECCIÓN: Evaluamos las opciones con el quebranto real (sin asumir reintegro de BYD todavía)
-        opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True) for l in l_validas for r in l["r"]]
-        opts = [o for o in opts if o["alcanza"]]
-        
-        pr = st.selectbox("Priorizar:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
-        
-        if not opts:
-            st.error(f"Ninguna línea alcanza a financiar los ${dif:,.0f}. Supera el tope o el LTV permitido.")
-        else:
-            if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
-            elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
-            else: opts.sort(key=lambda x: x["costo_fin"])
-            
-            cols_opts = st.columns(3)
-            for i, o in enumerate(opts[:3]):
-                with cols_opts[i]:
+        st.subheader("Mejores opciones")
+        cols_opts = st.columns(3)
+        for i, o in enumerate(opts[:3]):
+            with cols_opts[i]:
+                with st.container(border=True):
                     st.markdown(f"**Opción {i+1}**")
                     st.markdown(f"{o['linea']['n']}")
                     st.markdown(f"**Cuota: $ {o['cuota']:,.0f}**")
                     st.caption(f"{o['plazo']} meses | Debe poner: $ {o['poner_ars']:,.0f}")
-                    if st.button("Elegir", key=f"btn_{i}"):
+                    if st.button("Elegir", key=f"btn_{i}", use_container_width=True):
                         st.session_state["linea_elegida"] = o["linea"]["n"]
                         st.session_state["plazo_elegido"] = o["plazo"]
 
-            st.subheader("Opción elegida")
-            linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
-            plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
+        st.subheader("Opción elegida")
+        linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
+        plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
+        
+        st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
+        
+        l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
+        idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
+        
+        if not st.session_state.vista_cliente:
+            st.markdown("**Ajustes del vendedor**")
+            col_aj1, col_aj2, col_aj3 = st.columns(3)
             
-            st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
+            with col_aj1:
+                linea_sel_nombre = st.selectbox("Línea", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
+            with col_aj2:
+                plazo_sel = st.selectbox("Plazo (meses)", [r[0] for r in l_sel["r"]], index=idx_plazo)
+            with col_aj3:
+                ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
             
-            l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
-            idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
+            qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra al 100%)", value=True)
             
-            if not st.session_state.vista_cliente:
-                st.markdown("**Ajustes del vendedor**")
-                col_aj1, col_aj2, col_aj3 = st.columns(3)
-                
-                with col_aj1:
-                    linea_sel_nombre = st.selectbox("Línea", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
-                with col_aj2:
-                    plazo_sel = st.selectbox("Plazo (meses)", [r[0] for r in l_sel["r"]], index=idx_plazo)
-                with col_aj3:
-                    ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
-                
-                # CORRECCIÓN: Acá arranca tildado por defecto para que cobre el quebranto siempre
-                qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra al 100%)", value=True)
-                
-                l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
-                res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, ex_c, qr)
+            l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
+            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, ex_c, qr)
+        else:
+            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
+
+        if res_final:
+            st.markdown("### Resumen de la financiación")
+            col_res1, col_res2, col_res3, col_res4 = st.columns(4)
+            col_res1.metric("Cuota inicial", f"$ {res_final['cuota']:,.0f}")
+            if not res_final["uva"]:
+                col_res2.metric("Última cuota", f"$ {res_final['cuota_fin']:,.0f}")
             else:
-                # En vista cliente, siempre se cobra para no regalar plata
-                res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
+                col_res2.metric("Última cuota", "Ajustable UVA")
+            col_res3.metric("Gasto otorgamiento", f"$ {res_final['gasto_ars']:,.0f}")
+            col_res4.metric("Debe poner", f"$ {res_final['poner_ars']:,.0f}")
 
-            if res_final:
-                st.markdown("### Resumen de la financiación")
-                st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
-                if not res_final["uva"]:
-                    st.write(f"- **Última cuota:** $ {res_final['cuota_fin']:,.0f}")
-                st.write(f"- **Gasto de otorgamiento ({res_final['gasto_pct']:.2f}%):** $ {res_final['gasto_ars']:,.0f}")
-                st.write(f"- **Debe poner (sin contar el usado):** $ {res_final['poner_ars']:,.0f}")
+# --- MENSAJE (TAMBIÉN A TODO EL ANCHO) ---
+st.markdown("---")
+st.header("5. Mensaje para el cliente")
+msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
+if financiar and dif > 0 and res_final:
+    msg_defecto += f"\nFinanciación: {res_final['linea']['n']} a {res_final['plazo']} meses.\nCuota inicial: $ {res_final['cuota']:,.0f}"
 
-    st.markdown("---")
-    st.subheader("5. Mensaje WhatsApp")
-    msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
-    if financiar and dif > 0 and res_final:
-        msg_defecto += f"\nFinanciación: {res_final['linea']['n']} a {res_final['plazo']} meses.\nCuota inicial: $ {res_final['cuota']:,.0f}"
-    
-    st.text_area("Copiar y pegar en WhatsApp", msg_defecto, height=120)
+st.text_area("Copiar y pegar en WhatsApp", msg_defecto, height=120)
