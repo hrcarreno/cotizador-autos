@@ -78,11 +78,10 @@ dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
 es_usd = dm["moneda"] == "USD"
 simbolo = "u$s" if es_usd else "$"
 
-# --- EL CÓDIGO DISFRAZADO (AHORA ES LA DIFERENCIA REAL) ---
+# --- EL CÓDIGO DISFRAZADO ---
 bon = 0
 if not st.session_state.vista_cliente:
-    # Si la tabla tiene una bonificación definida (ej. 2.262.000), la mostramos.
-    if dm["bonif"] > 0:
+    if dm.get("bonif", 0) > 0:
         bon = dm["bonif"]
         st.info(f"Bonificación máxima autorizada: {simbolo} {bon:,.0f}")
         st.code(f"Código para el cliente: {generar_codigo_disfrazado(bon)}", language=None)
