@@ -14,8 +14,6 @@ try:
 except Exception:
     ia_activa = False
 
-# Inicializamos variables de estado. 
-# vista_cliente = False asegura que el vendedor vea todo siempre al entrar.
 if "datos_ia" not in st.session_state:
     st.session_state.datos_ia = None
 if "vista_cliente" not in st.session_state:
@@ -58,8 +56,6 @@ with st.sidebar:
                 st.rerun()
 
 st.title("Cotizador BYD 0 km")
-
-# El toggle de Vista Cliente sigue estando, pero arranca apagado (vista vendedor)
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor (bonificación y ajustes).")
 
 # --- PASO 1: VEHÍCULO ---
@@ -83,13 +79,13 @@ es_usd = dm["moneda"] == "USD"
 simbolo = "u$s" if es_usd else "$"
 
 bon = 0
-# Si NO está la vista cliente activa, mostramos las herramientas del vendedor
 if not st.session_state.vista_cliente:
     aplicar_bonif = st.checkbox("Aplicar bonificación")
     if aplicar_bonif:
-        # Le ponemos un value por defecto de 1000 para que el código salte de toque
-        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000, value=1000)
-        st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
+        # CAMBIO CLAVE: value=2000000 para que arranque con un monto lógico de la realidad
+        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=2000000)
+        if bon > 0:
+            st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
 
 patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 tot_abonar = (dm["precio"] - bon) + dm["fyf"] + (dm["pat"] if patenta == "Concesionario" else 0)
@@ -170,7 +166,6 @@ if financiar and dif > 0:
         l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
         idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
         
-        # Si NO es vista cliente, mostramos los ajustes finos del vendedor
         if not st.session_state.vista_cliente:
             st.markdown("**Ajustes del vendedor**")
             col_aj1, col_aj2, col_aj3 = st.columns(3)
