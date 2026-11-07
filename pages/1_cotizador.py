@@ -153,48 +153,37 @@ res_final = None
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
     
-    # --- EL NUEVO MODO EQUILIBRADO ---
-    st.markdown("### Modo de Cálculo")
-    modo_eq = st.toggle("Calcular anticipo equilibrado automáticamente", help="Ajusta el anticipo para que el gasto de otorgamiento salga del dinero declarado por el cliente, sin que tenga que poner un peso extra.")
+    st.subheader("Parámetros")
+    pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total", "Equilibrado (no poner extra)"])
     
-    if modo_eq:
-        st.info(f"El cliente declaró un total de **${ant_ars + usado_ars:,.0f}** (Anticipo + Usado). El sistema va a calcular la opción más conveniente para que no tenga que poner un peso extra de su bolsillo para cubrir el quebranto.")
-
     opts = []
     for l in l_validas:
         for r in l["r"]:
-            # Primero calculamos con el anticipo normal para saber cuál es el porcentaje de gasto de esa línea/plazo
+            # 1. Calcular el gasto porcentual de esta combinación
             test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
-            if test_o["alcanza"]:
-                if modo_eq:
-                    # Matemática del Equilibrio
-                    dinero_total = ant_ars + usado_ars
-                    gasto_pct = test_o["gasto_pct"] / 100
-                    # Descontamos el gasto del total declarado
-                    anticipo_real = dinero_total / (1 + gasto_pct)
-                    usado_real = usado_ars
-                    
-                    # Recalculamos la diferencia con el anticipo ajustado
-                    dif_eq = tot_ars - anticipo_real - usado_real
-                    
-                    # Evaluamos la línea final con estos nuevos valores
-                    o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_real, 0.0, True)
-                    # Guardamos el nuevo 'poner_ars' para que muestre lo que el cliente declaró originalmente
-                    o["poner_ars"] = dinero_total
-                    o["anticipo_real"] = anticipo_real
-                else:
-                    o = test_o
-                    o["anticipo_real"] = ant_ars
+            if not test_o["alcanza"]:
+                continue
                 
-                opts.append(o)
+            gasto_pct = test_o["gasto_pct"] / 100
+            dinero_cliente = ant_ars + usado_ars
+            
+            if pr == "Equilibrado (no poner extra)":
+                # 2. Fórmula Equilibrada: Diferencia = (Total - Dinero) / (1 - Gasto)
+                dif_eq = (tot_ars - dinero_cliente) / (1 - gasto_pct)
+                anticipo_real = tot_ars - dif_eq - usado_ars
+                o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_real, 0.0, True)
+                o["mostrar_poner"] = dinero_cliente # El cliente pone exactamente lo que declaró
+            else:
+                o = test_o
+                o["mostrar_poner"] = test_o["poner_ars"]
+                
+            opts.append(o)
 
-    pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
-    
     if not opts:
-        st.error(f"Ninguna línea alcanza a financiar este monto.")
+        st.error("Ninguna línea alcanza a financiar este monto con los parámetros actuales.")
     else:
         if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
-        elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
+        elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
         else: opts.sort(key=lambda x: x["costo_fin"])
         
         st.subheader("Mejores opciones")
@@ -205,21 +194,16 @@ if financiar and dif > 0:
                     st.markdown(f"**Opción {i+1}**")
                     st.markdown(f"{o['linea']['n']}")
                     st.markdown(f"**Cuota: $ {o['cuota']:,.0f}**")
-                    
-                    if modo_eq:
-                        st.caption(f"{o['plazo']} meses | Cliente pone: ${o['poner_ars']:,.0f} (Anticipo real: ${o['anticipo_real']:,.0f})")
-                    else:
-                        st.caption(f"{o['plazo']} meses | Debe poner: ${o['poner_ars']:,.0f}")
-                        
+                    st.caption(f"{o['plazo']} meses | Debe poner: ${o['mostrar_poner']:,.0f}")
                     if st.button("Elegir", key=f"btn_{i}", use_container_width=True):
                         st.session_state["linea_elegida"] = o["linea"]["n"]
                         st.session_state["plazo_elegido"] = o["plazo"]
-                        st.session_state["modo_eq"] = modo_eq
+                        st.session_state["prioridad_elegida"] = pr
 
         st.subheader("Opción elegida")
         linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
         plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
-        modo_eq_activo = st.session_state.get("modo_eq", False)
+        pr_actual = st.session_state.get("prioridad_elegida", pr)
         
         st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
         
@@ -242,15 +226,16 @@ if financiar and dif > 0:
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
             p_data = next(r for r in l_sel["r"] if r[0] == plazo_sel)
             
-            # Re-evaluamos la opción elegida con los ajustes finales
-            if modo_eq_activo:
-                dinero_total = ant_ars + usado_ars
+            # Recalcular la opción elegida con los ajustes finales
+            if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-                anticipo_real = dinero_total / (1 + o_test["gasto_pct"]/100)
-                dif_final = tot_ars - anticipo_real - usado_ars
+                gasto_pct = o_test["gasto_pct"] / 100
+                dinero_cliente = ant_ars + usado_ars
+                dif_final = (tot_ars - dinero_cliente) / (1 - gasto_pct)
+                anticipo_real = tot_ars - dif_final - usado_ars
                 
                 res_final = evaluar_linea(l_sel, p_data, dif_final, tot_ars, anticipo_real, ex_c, qr)
-                res_final["poner_ars"] = dinero_total # Forzamos a que muestre el total original
+                res_final["poner_ars"] = dinero_cliente
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
 
