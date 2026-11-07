@@ -80,12 +80,13 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
+    # CASILLA DE BONIFICACIÓN Y CÓDIGO DISFRAZADO
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
-            aplicar_bonif = st.checkbox("Aplicar bonificación de lista")
+            aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                bon = dm["bonif"]
+                bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=dm["bonif"])
                 st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
@@ -142,13 +143,18 @@ with col2:
     if dif < 0:
         st.success(f"**Saldo a favor:** $ {abs(dif):,.0f}")
     else:
-        st.info(f"**Diferencia a Financiar:** $ {dif:,.0f}")
+        st.info(f"**Diferencia a Financiar (antes de gastos):** $ {dif:,.0f}")
 
 st.markdown("---")
 st.header("4. Financiación")
 financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 
 res_final = None
+
+# Variables para guardar el resumen final
+mostrar_capital = dif
+mostrar_gasto = 0
+mostrar_total_banco = dif
 
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
@@ -159,20 +165,17 @@ if financiar and dif > 0:
     opts = []
     for l in l_validas:
         for r in l["r"]:
-            # 1. Calcular el gasto porcentual de esta combinación
             test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
-            if not test_o["alcanza"]:
-                continue
+            if not test_o["alcanza"]: continue
                 
             gasto_pct = test_o["gasto_pct"] / 100
             dinero_cliente = ant_ars + usado_ars
             
             if pr == "Equilibrado (no poner extra)":
-                # 2. Fórmula Equilibrada: Diferencia = (Total - Dinero) / (1 - Gasto)
                 dif_eq = (tot_ars - dinero_cliente) / (1 - gasto_pct)
                 anticipo_real = tot_ars - dif_eq - usado_ars
                 o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_real, 0.0, True)
-                o["mostrar_poner"] = dinero_cliente # El cliente pone exactamente lo que declaró
+                o["mostrar_poner"] = dinero_cliente
             else:
                 o = test_o
                 o["mostrar_poner"] = test_o["poner_ars"]
@@ -221,12 +224,11 @@ if financiar and dif > 0:
             with col_aj3:
                 ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
             
-            qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra al 100%)", value=True)
+            qr = st.checkbox("Cobrar el quebranto", value=True)
             
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
             p_data = next(r for r in l_sel["r"] if r[0] == plazo_sel)
             
-            # Recalcular la opción elegida con los ajustes finales
             if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
@@ -238,20 +240,42 @@ if financiar and dif > 0:
                 res_final["poner_ars"] = dinero_cliente
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-
         else:
+            # En vista cliente, calcular normal
             res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
 
         if res_final:
+            # Guardamos los valores para el desglose
+            mostrar_capital = res_final.get("total_cuotas", 0) - res_final.get("costo_fin", 0) # Aproximación, pero usaremos la base
+            # Recalculamos el capital real que se financia:
+            if pr_actual == "Equilibrado (no poner extra)":
+                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                gasto_pct = o_test["gasto_pct"] / 100
+                dinero_cliente = ant_ars + usado_ars
+                mostrar_capital = (tot_ars - dinero_cliente) / (1 - gasto_pct)
+            else:
+                mostrar_capital = dif
+                
+            mostrar_gasto = res_final["gasto_ars"]
+            mostrar_total_banco = mostrar_capital + mostrar_gasto
+
             st.markdown("### Resumen de la financiación")
+            
+            # FILA DE MÉTRICAS
             col_res1, col_res2, col_res3, col_res4 = st.columns(4)
             col_res1.metric("Cuota inicial", f"$ {res_final['cuota']:,.0f}")
             if not res_final["uva"]:
                 col_res2.metric("Última cuota", f"$ {res_final['cuota_fin']:,.0f}")
             else:
                 col_res2.metric("Última cuota", "Ajustable UVA")
-            col_res3.metric("Gasto otorgamiento", f"$ {res_final['gasto_ars']:,.0f}")
+            col_res3.metric("Gasto otorgamiento", f"$ {mostrar_gasto:,.0f}")
             col_res4.metric("Debe poner", f"$ {res_final['poner_ars']:,.0f}")
+
+            st.markdown("#### Desglose para el banco y boleto")
+            with st.container(border=True):
+                st.markdown(f"**Capital a Financiar:** $ {mostrar_capital:,.0f}")
+                st.markdown(f"**Quebranto / Gasto:** $ {mostrar_gasto:,.0f}")
+                st.markdown(f"**Total a pedir al Banco:** $ {mostrar_total_banco:,.0f}")
 
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
