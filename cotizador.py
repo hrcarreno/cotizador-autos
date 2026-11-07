@@ -16,6 +16,7 @@ MODELOS = [
 ]
 
 LINEAS = [
+    # --- CONVENIOS BYD (Especiales) ---
     {"n": "Convenio BYD · UVA 0%", "k": "conv", "uva": True, "aplica": ["Dolphin Mini", "Song Pro", "Yuan Pro", "Seal 5", "Atto 2"], 
      "r": [[12, 0, 6.56, 25000000], [18, 0, 9.64, 17000000]]},
     {"n": "Convenio BYD · Fija 0%", "k": "conv", "uva": False, "aplica": ["Dolphin Mini", "Song Pro", "Yuan Pro", "Seal 5", "Atto 2"], 
@@ -24,16 +25,22 @@ LINEAS = [
      "r": [[12, 9.9, 10.93, 15000000]]},
     {"n": "Convenio BYD · Fija 14,90%", "k": "conv", "uva": False, "aplica": ["Dolphin Mini", "Song Pro", "Yuan Pro", "Seal 5", "Atto 2"], 
      "r": [[18, 14.9, 12.61, 13000000]]},
-    {"n": "Quebranto concesionario · Fija 0%", "k": "queb", "uva": False, "ltv": [90, 100], 
+     
+    # --- QUEBRANTO CONCESIONARIO ---
+    {"n": "Quebranto Concesionario · Fija 0%", "k": "queb", "uva": False, "ltv": [90, 100], 
      "r": [[12, 0, 15.8, None], [18, 0, 21.9, None], [24, 0, 27.5, None], [36, 0, 37, None], [48, 0, 44.8, None]]},
-    {"n": "Quebranto concesionario · UVA 0%", "k": "queb", "uva": True, "ltv": [85], 
+    {"n": "Quebranto Concesionario · UVA 0%", "k": "queb", "uva": True, "ltv": [85], 
      "r": [[12, 0, 6.5, None], [18, 0, 9.3, None], [24, 0, 12, None], [36, 0, 17, None], [48, 0, 21.6, None]]},
-    {"n": "Quebranto concesionario · UVA 9,90%", "k": "queb", "uva": True, "ltv": [85], 
+    {"n": "Quebranto Concesionario · UVA 9,90%", "k": "queb", "uva": True, "ltv": [85], 
      "r": [[12, 9.9, 1.4, None], [18, 9.9, 2, None], [24, 9.9, 2.6, None], [36, 9.9, 3.7, None], [48, 9.9, 4.8, None]]},
+     
+    # --- SIN QUEBRANTO ---
     {"n": "Sin quebranto · UVA 12,50%", "k": "sin", "uva": True, "ltv": [85], 
      "r": [[12, 12.5, 0, None], [18, 12.5, 0, None], [24, 12.5, 0, None], [36, 12.5, 0, None], [48, 12.5, 0, None]]},
     {"n": "Sin quebranto · Fija 32,90%", "k": "sin", "uva": False, "ltv": [90, 100], 
      "r": [[12, 32.9, 0, None], [18, 32.9, 0, None], [24, 32.9, 0, None], [36, 32.9, 0, None], [48, 32.9, 0, None], [60, 32.9, 0, None]]},
+     
+    # --- COMISIÓN ---
     {"n": "Comisión · UVA 14,50%", "k": "com", "uva": True, "ltv": [85], 
      "r": [[12, 14.5, 0, None], [18, 14.5, 0, None], [24, 14.5, 0, None], [36, 14.5, 0, None], [48, 14.5, 0, None]]},
     {"n": "Comisión · Fija 34,90%", "k": "com", "uva": False, "ltv": [90, 100], 
