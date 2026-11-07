@@ -42,7 +42,7 @@ def procesar_pedido_ia(prompt):
     except Exception:
         return None
 
-# --- BARRA LATERAL: ASISTENTE ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("🤖 Asistente")
     st.write("Contale qué pide el cliente.")
@@ -56,16 +56,12 @@ with st.sidebar:
                 st.rerun()
 
 st.title("Cotizador BYD 0 km")
-st.caption("Lista de precios cargada, 11 modelos · Financiación Banco Santander, octubre 2026")
-
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor.")
 
 # --- PASO 1: VEHÍCULO ---
 st.header("1. Vehículo")
-
 nombres = [m["nombre"] for m in MODELOS]
 
-# Lógica para seleccionar el modelo que detectó la IA
 if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
     mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
     for n in nombres:
@@ -82,16 +78,14 @@ dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
 es_usd = dm["moneda"] == "USD"
 simbolo = "u$s" if es_usd else "$"
 
-# --- BONIFICACIÓN (AHORA BIEN VISIBLE) ---
 bon = 0
 if not st.session_state.vista_cliente:
     aplicar_bonif = st.checkbox("Aplicar bonificación")
     if aplicar_bonif:
-        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000)
-        if bon > 0:
-            st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
+        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000, value=1000)
+        # Ahora el código se muestra SIEMPRE que la casilla está tildada, incluso si ponen 0
+        st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
 
-# --- CALCULO BASE ---
 patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 tot_abonar = (dm["precio"] - bon) + dm["fyf"] + (dm["pat"] if patenta == "Concesionario" else 0)
 st.info(f"**Precio Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
@@ -132,13 +126,13 @@ else:
 
 # --- PASO 4: FINANCIACIÓN ---
 st.header("4. Financiación")
-st.caption("Banco Santander, política de octubre 2026. La financiación se calcula en pesos.")
-
 financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
+
+# Inicializamos res_final para evitar el NameError en el mensaje
+res_final = None
 
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
-    
     opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, False) for l in l_validas for r in l["r"]]
     opts = [o for o in opts if o["alcanza"]]
     
@@ -190,20 +184,20 @@ if financiar and dif > 0:
         else:
             res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, False)
 
-        st.markdown("### Resumen de la financiación")
-        st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
-        if not res_final["uva"]:
-            st.write(f"- **Última cuota:** $ {res_final['cuota_fin']:,.0f}")
-        st.write(f"- **Gasto de otorgamiento:** $ {res_final['gasto_ars']:,.0f}")
-        st.write(f"- **Debe poner (sin contar el usado):** $ {res_final['poner_ars']:,.0f}")
+        if res_final:
+            st.markdown("### Resumen de la financiación")
+            st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
+            if not res_final["uva"]:
+                st.write(f"- **Última cuota:** $ {res_final['cuota_fin']:,.0f}")
+            st.write(f"- **Gasto de otorgamiento:** $ {res_final['gasto_ars']:,.0f}")
+            st.write(f"- **Debe poner (sin contar el usado):** $ {res_final['poner_ars']:,.0f}")
 
 # --- PASO 5: MENSAJE ---
 st.header("5. Mensaje para el cliente")
 msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
-if financiar and dif > 0:
+
+# Validamos que res_final exista antes de agregarlo al mensaje
+if financiar and dif > 0 and res_final:
     msg_defecto += f"\nFinanciación: {res_final['linea']['n']} a {res_final['plazo']} meses.\nCuota inicial: $ {res_final['cuota']:,.0f}"
 
 st.text_area("Mensaje para WhatsApp", msg_defecto, height=150)
-
-st.markdown("---")
-st.caption("Patentamiento y fletes/formularios (FyF) según la tabla de la lista. La bonificación la define el vendedor. Financiación: política de Banco Santander de octubre 2026; cuotas con sistema francés e IVA sobre el interés. No incluye seguro.")
