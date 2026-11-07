@@ -55,15 +55,12 @@ with st.sidebar:
                 st.success("¡Datos cargados!")
                 st.rerun()
 
-# --- ENCABEZADO ---
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
 
-# --- DIVIDIMOS EN DOS COLUMNAS ---
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
-    # PASO 1: VEHÍCULO
     st.header("1. Vehículo")
     nombres = [m["nombre"] for m in MODELOS]
 
@@ -83,21 +80,18 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- OPCIÓN DE BONIFICACIÓN Y CÓDIGO DISFRAZADO ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación de lista")
             if aplicar_bonif:
                 bon = dm["bonif"]
-                # Mostramos SOLO el código limpio
                 st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
 
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
-    # PASO 2: QUÉ ENTREGA EL CLIENTE
     st.header("2. Qué entrega el cliente")
     tc = st.number_input("Dólar agencia ($)", min_value=1, step=10, value=1450)
 
@@ -121,15 +115,12 @@ with col1:
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
 with col2:
-    # --- PANEL DE RESUMEN (TIPO FLOTANTE) ---
     st.markdown("### Resumen de Cotización")
     
-    # Calculos para el desglose
     precio_base = dm["precio"] - bon
     pat_monto = dm["pat"] if patenta == "Concesionario" else 0
     tot_abonar = precio_base + dm["fyf"] + pat_monto
 
-    # Tarjeta de desglose
     with st.container(border=True):
         st.markdown(f"**Precio de Lista:** {simbolo} {dm['precio']:,.0f}")
         if bon > 0:
@@ -144,7 +135,6 @@ with col2:
         st.divider()
         st.markdown(f"#### **Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
 
-    # PASO 3: RESULTADO
     tot_ars = tot_abonar * tc if es_usd else tot_abonar
     dif = tot_ars - ant_ars - usado_ars
 
@@ -154,7 +144,6 @@ with col2:
     else:
         st.info(f"**Diferencia a Financiar:** $ {dif:,.0f}")
 
-    # PASO 4: FINANCIACIÓN
     st.markdown("### 4. Financiación")
     financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 
@@ -162,13 +151,15 @@ with col2:
 
     if financiar and dif > 0:
         l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
-        opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, False) for l in l_validas for r in l["r"]]
+        
+        # CORRECCIÓN: Evaluamos las opciones con el quebranto real (sin asumir reintegro de BYD todavía)
+        opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True) for l in l_validas for r in l["r"]]
         opts = [o for o in opts if o["alcanza"]]
         
         pr = st.selectbox("Priorizar:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
         
         if not opts:
-            st.error("Ninguna línea alcanza a financiar este monto. Aumentá el anticipo o el usado.")
+            st.error(f"Ninguna línea alcanza a financiar los ${dif:,.0f}. Supera el tope o el LTV permitido.")
         else:
             if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
             elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
@@ -205,22 +196,23 @@ with col2:
                 with col_aj3:
                     ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
                 
-                qr = st.checkbox("Cobrar el quebranto aunque BYD lo reintegre")
+                # CORRECCIÓN: Acá arranca tildado por defecto para que cobre el quebranto siempre
+                qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra al 100%)", value=True)
                 
                 l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
                 res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, ex_c, qr)
             else:
-                res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, False)
+                # En vista cliente, siempre se cobra para no regalar plata
+                res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
 
             if res_final:
                 st.markdown("### Resumen de la financiación")
                 st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
                 if not res_final["uva"]:
                     st.write(f"- **Última cuota:** $ {res_final['cuota_fin']:,.0f}")
-                st.write(f"- **Gasto de otorgamiento:** $ {res_final['gasto_ars']:,.0f}")
+                st.write(f"- **Gasto de otorgamiento ({res_final['gasto_pct']:.2f}%):** $ {res_final['gasto_ars']:,.0f}")
                 st.write(f"- **Debe poner (sin contar el usado):** $ {res_final['poner_ars']:,.0f}")
 
-    # PASO 5: MENSAJE
     st.markdown("---")
     st.subheader("5. Mensaje WhatsApp")
     msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
