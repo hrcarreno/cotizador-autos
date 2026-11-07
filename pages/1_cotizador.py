@@ -56,7 +56,7 @@ with st.sidebar:
                 st.rerun()
 
 st.title("Cotizador BYD 0 km")
-st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor (bonificación y ajustes).")
+st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
 
 # --- PASO 1: VEHÍCULO ---
 st.header("1. Vehículo")
@@ -78,18 +78,20 @@ dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
 es_usd = dm["moneda"] == "USD"
 simbolo = "u$s" if es_usd else "$"
 
+# --- EL CÓDIGO DISFRAZADO (AHORA ES LA DIFERENCIA REAL) ---
 bon = 0
 if not st.session_state.vista_cliente:
-    aplicar_bonif = st.checkbox("Aplicar bonificación")
-    if aplicar_bonif:
-        # CAMBIO CLAVE: value=2000000 para que arranque con un monto lógico de la realidad
-        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=2000000)
-        if bon > 0:
-            st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
+    # Si la tabla tiene una bonificación definida (ej. 2.262.000), la mostramos.
+    if dm["bonif"] > 0:
+        bon = dm["bonif"]
+        st.info(f"Bonificación máxima autorizada: {simbolo} {bon:,.0f}")
+        st.code(f"Código para el cliente: {generar_codigo_disfrazado(bon)}", language=None)
+    else:
+        st.caption("Este modelo no tiene bonificación de lista.")
 
 patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 tot_abonar = (dm["precio"] - bon) + dm["fyf"] + (dm["pat"] if patenta == "Concesionario" else 0)
-st.info(f"**Precio Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
+st.success(f"**Precio Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
 
 # --- PASO 2: QUÉ ENTREGA EL CLIENTE ---
 st.header("2. Qué entrega el cliente")
