@@ -58,44 +58,38 @@ with st.sidebar:
 st.title("Cotizador BYD 0 km")
 st.caption("Lista de precios cargada, 11 modelos · Financiación Banco Santander, octubre 2026")
 
-st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor y muestra solo lo que ve el cliente.")
+st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor.")
 
 # --- PASO 1: VEHÍCULO ---
 st.header("1. Vehículo")
-col_v1, col_v2 = st.columns([2, 1])
 
-with col_v1:
-    nombres = [m["nombre"] for m in MODELOS]
-    
-    # Lógica para seleccionar el modelo que detectó la IA
-    if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
-        mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
-        for n in nombres:
-            if mod_ia in n.lower():
-                st.session_state["select_modelo"] = n
-                st.session_state.datos_ia["modelo"] = None
-                break
-                
-    if "select_modelo" not in st.session_state:
-        st.session_state["select_modelo"] = nombres[0]
+nombres = [m["nombre"] for m in MODELOS]
 
-    mod_sel = st.selectbox("Modelo", nombres, key="select_modelo")
-    dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
-    es_usd = dm["moneda"] == "USD"
-    simbolo = "u$s" if es_usd else "$"
+# Lógica para seleccionar el modelo que detectó la IA
+if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
+    mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
+    for n in nombres:
+        if mod_ia in n.lower():
+            st.session_state["select_modelo"] = n
+            st.session_state.datos_ia["modelo"] = None
+            break
+            
+if "select_modelo" not in st.session_state:
+    st.session_state["select_modelo"] = nombres[0]
 
-with col_v2:
-    if not st.session_state.vista_cliente:
-        # BONIFICACIÓN
-        aplicar_bonif = st.checkbox("Aplicar bonificación")
-        bon = 0
-        if aplicar_bonif:
-            bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000)
-            if bon > 0:
-                st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
-    else:
-        bon = 0
-        st.write("") # Espacio para alinear
+mod_sel = st.selectbox("Modelo", nombres, key="select_modelo")
+dm = next(m for m in MODELOS if m["nombre"] == mod_sel)
+es_usd = dm["moneda"] == "USD"
+simbolo = "u$s" if es_usd else "$"
+
+# --- BONIFICACIÓN (AHORA BIEN VISIBLE) ---
+bon = 0
+if not st.session_state.vista_cliente:
+    aplicar_bonif = st.checkbox("Aplicar bonificación")
+    if aplicar_bonif:
+        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000)
+        if bon > 0:
+            st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
 
 # --- CALCULO BASE ---
 patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
@@ -145,7 +139,6 @@ financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
     
-    # Calcular TODAS las opciones viables
     opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, False) for l in l_validas for r in l["r"]]
     opts = [o for o in opts if o["alcanza"]]
     
@@ -159,7 +152,6 @@ if financiar and dif > 0:
         elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
         else: opts.sort(key=lambda x: x["costo_fin"])
         
-        # Mostrar las 3 mejores como botones/tarjetas
         cols_opts = st.columns(3)
         for i, o in enumerate(opts[:3]):
             with cols_opts[i]:
@@ -177,11 +169,12 @@ if financiar and dif > 0:
         
         st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
         
+        l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
+        idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
+        
         if not st.session_state.vista_cliente:
             st.markdown("**Ajustes del vendedor**")
             col_aj1, col_aj2, col_aj3 = st.columns(3)
-            l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
-            idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
             
             with col_aj1:
                 linea_sel_nombre = st.selectbox("Línea", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
@@ -192,11 +185,10 @@ if financiar and dif > 0:
             
             qr = st.checkbox("Cobrar el quebranto aunque BYD lo reintegre")
             
-            # Recalcular con los ajustes
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
             res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, ex_c, qr)
         else:
-            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, 0.0, False)
+            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, False)
 
         st.markdown("### Resumen de la financiación")
         st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
