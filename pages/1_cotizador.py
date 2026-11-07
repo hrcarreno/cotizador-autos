@@ -4,9 +4,9 @@ import re
 from openai import OpenAI
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
-st.set_page_config(page_title="Cotizador BYD", layout="wide")
+st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
-# --- CONFIGURACIÓN DE GROQ ---
+# --- CONFIGURACIÓN IA ---
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=API_KEY)
@@ -16,12 +16,13 @@ except Exception:
 
 if "datos_ia" not in st.session_state:
     st.session_state.datos_ia = None
+if "vista_cliente" not in st.session_state:
+    st.session_state.vista_cliente = False
 
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
     system_prompt = """Sos un asistente de ventas de autos. Extraé datos y devolvé SOLO un JSON válido.
-    Claves exactas: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (cuota/inicial/costo).
-    Si no se menciona algo, devolver null."""
+    Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string)."""
     try:
         response = client.chat.completions.create(
             model="openai/gpt-oss-120b",
@@ -32,48 +33,47 @@ def procesar_pedido_ia(prompt):
         json_limpio = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', texto, flags=re.DOTALL)
         json_limpio = json_limpio[json_limpio.find('{'):json_limpio.rfind('}')+1]
         datos = json.loads(json_limpio)
-        
-        # Traductor por si la IA usa nombres distintos
         return {
-            "modelo": datos.get("modelo") or datos.get("auto"),
-            "anticipo": datos.get("anticipo") or datos.get("entrega") or datos.get("pesos") or 0,
+            "modelo": datos.get("modelo"),
+            "anticipo": datos.get("anticipo") or 0,
             "usado": datos.get("usado") or 0,
             "prioridad": datos.get("prioridad")
         }
-    except Exception as e:
-        st.error(f"Error de IA: {e}")
+    except Exception:
         return None
 
+# --- BARRA LATERAL: ASISTENTE ---
 with st.sidebar:
-    st.header("🤖 Asistente IA")
-    if ia_activa:
-        st.write("Contale qué pide el cliente.")
-        prompt_ia = st.chat_input("Ej: Quiere una Song Pro, entrega 10 palos...")
-        if prompt_ia:
-            with st.spinner("Procesando..."):
-                datos = procesar_pedido_ia(prompt_ia)
-                if datos:
-                    st.session_state.datos_ia = datos
-                    st.success("¡Datos cargados!")
-                    st.rerun()
-    else:
-        st.info("Configurá GROQ_API_KEY en Secrets.")
+    st.header("🤖 Asistente")
+    st.write("Contale qué pide el cliente.")
+    prompt_ia = st.chat_input("Ej: Quiere una Song Pro, entrega 10 palos...")
+    if prompt_ia and ia_activa:
+        with st.spinner("Procesando..."):
+            datos = procesar_pedido_ia(prompt_ia)
+            if datos:
+                st.session_state.datos_ia = datos
+                st.success("¡Datos cargados!")
+                st.rerun()
 
 st.title("Cotizador BYD 0 km")
-col1, col2 = st.columns(2)
+st.caption("Lista de precios cargada, 11 modelos · Financiación Banco Santander, octubre 2026")
 
-with col1:
-    st.subheader("1. Vehículo y Descuento")
-    
+st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas del vendedor y muestra solo lo que ve el cliente.")
+
+# --- PASO 1: VEHÍCULO ---
+st.header("1. Vehículo")
+col_v1, col_v2 = st.columns([2, 1])
+
+with col_v1:
     nombres = [m["nombre"] for m in MODELOS]
     
-    # Forzar actualización del selectbox
+    # Lógica para seleccionar el modelo que detectó la IA
     if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
         mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
         for n in nombres:
             if mod_ia in n.lower():
                 st.session_state["select_modelo"] = n
-                st.session_state.datos_ia["modelo"] = None 
+                st.session_state.datos_ia["modelo"] = None
                 break
                 
     if "select_modelo" not in st.session_state:
@@ -84,101 +84,134 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- BONIFICACIÓN (CÓDIGO DISFRAZADO) ---
-    st.markdown("---")
-    if st.checkbox("Aplicar bonificación manual"):
-        bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000)
-        if bon > 0:
-            st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
+with col_v2:
+    if not st.session_state.vista_cliente:
+        # BONIFICACIÓN
+        aplicar_bonif = st.checkbox("Aplicar bonificación")
+        bon = 0
+        if aplicar_bonif:
+            bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=1000)
+            if bon > 0:
+                st.code(f"Código: {generar_codigo_disfrazado(bon)}", language=None)
     else:
         bon = 0
-        
-    st.markdown("---")
-    patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
-    tot_abonar = (dm["precio"] - bon) + dm["fyf"] + (dm["pat"] if patenta == "Concesionario" else 0)
-    
-    st.info(f"**Total a abonar:** {simbolo} {tot_abonar:,.0f}")
+        st.write("") # Espacio para alinear
 
-    st.subheader("2. Forma de pago")
-    tc = st.number_input("Dólar agencia ($)", min_value=1, step=10, value=1450)
-    
-    # Valores que vienen de la IA
-    ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
-    ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
+# --- CALCULO BASE ---
+patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
+tot_abonar = (dm["precio"] - bon) + dm["fyf"] + (dm["pat"] if patenta == "Concesionario" else 0)
+st.info(f"**Precio Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
 
+# --- PASO 2: QUÉ ENTREGA EL CLIENTE ---
+st.header("2. Qué entrega el cliente")
+tc = st.number_input("Dólar agencia ($)", min_value=1, step=10, value=1450)
+
+ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
+ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
+
+col_e1, col_e2 = st.columns(2)
+with col_e1:
     check_ant = st.checkbox("Entrego anticipo", value=(ia_anticipo > 0))
     ant_ars = 0
     if check_ant:
-        c1, c2 = st.columns(2)
-        ant_pesos = c1.number_input("En pesos", min_value=0, step=100000, value=int(ia_anticipo))
-        ant_usd = c2.number_input("En dólares", min_value=0, step=100, value=0)
+        ant_pesos = st.number_input("En pesos ($)", min_value=0, step=100000, value=int(ia_anticipo))
+        ant_usd = st.number_input("En dólares (USD)", min_value=0, step=100)
         ant_ars = ant_pesos + (ant_usd * tc)
-        
+
+with col_e2:
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
     usado_ars = 0
     if check_usado:
-        c3, c4 = st.columns(2)
-        tas = c3.number_input("Tasación", min_value=0, step=100000, value=int(ia_usado))
-        moneda_usado = c4.selectbox("Moneda", ["Pesos", "Dólares"])
+        tas = st.number_input("Tasación", min_value=0, step=100000, value=int(ia_usado))
+        moneda_usado = st.selectbox("Moneda", ["Pesos", "Dólares"])
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
-    # Diferencia a financiar
-    tot_ars = tot_abonar * tc if es_usd else tot_abonar
-    dif = tot_ars - ant_ars - usado_ars
+# --- PASO 3: RESULTADO ---
+tot_ars = tot_abonar * tc if es_usd else tot_abonar
+dif = tot_ars - ant_ars - usado_ars
+
+st.header("3. Resultado")
+if dif < 0:
+    st.success(f"**Saldo a favor del cliente:** $ {abs(dif):,.0f}")
+else:
+    st.info(f"**Diferencia a Financiar:** $ {dif:,.0f}")
+
+# --- PASO 4: FINANCIACIÓN ---
+st.header("4. Financiación")
+st.caption("Banco Santander, política de octubre 2026. La financiación se calcula en pesos.")
+
+financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
+
+if financiar and dif > 0:
+    l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
     
-    if dif < 0:
-        st.success(f"Saldo a favor: $ {abs(dif):,.0f}")
+    # Calcular TODAS las opciones viables
+    opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, False) for l in l_validas for r in l["r"]]
+    opts = [o for o in opts if o["alcanza"]]
+    
+    st.subheader("Mejores opciones")
+    pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
+    
+    if not opts:
+        st.error("Ninguna línea alcanza a financiar este monto. Aumentá el anticipo o el usado.")
     else:
-        st.info(f"Diferencia a financiar: $ {dif:,.0f}")
+        if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
+        elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
+        else: opts.sort(key=lambda x: x["costo_fin"])
+        
+        # Mostrar las 3 mejores como botones/tarjetas
+        cols_opts = st.columns(3)
+        for i, o in enumerate(opts[:3]):
+            with cols_opts[i]:
+                st.markdown(f"**Opción {i+1}**")
+                st.markdown(f"{o['linea']['n']}")
+                st.markdown(f"**Cuota: $ {o['cuota']:,.0f}**")
+                st.caption(f"{o['plazo']} meses | Debe poner: $ {o['poner_ars']:,.0f}")
+                if st.button("Elegir", key=f"btn_{i}"):
+                    st.session_state["linea_elegida"] = o["linea"]["n"]
+                    st.session_state["plazo_elegido"] = o["plazo"]
 
-with col2:
-    st.subheader("3. Financiación Banco Santander")
-    
-    # Siempre mostramos la opción de financiar, pero verificamos que haya diferencia
-    financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
-    
-    if financiar and dif > 0:
-        l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
-        l_sel = next(l for l in l_validas if l["n"] == st.selectbox("Línea", [l["n"] for l in l_validas]))
+        st.subheader("Opción elegida")
+        linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
+        plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
         
-        plazos = [r[0] for r in l_sel["r"]]
-        plazo = st.radio("Plazo (meses)", plazos, horizontal=True)
+        st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
         
-        ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
-        qr = st.checkbox("Cobrar quebranto aunque BYD lo reintegre")
-        
-        res = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo), dif, tot_ars, ant_ars, ex_c, qr)
-        
-        if not res["alcanza"]:
-            st.error(f"Línea no alcanza. Faltan $ {res['falta']:,.0f}.")
+        if not st.session_state.vista_cliente:
+            st.markdown("**Ajustes del vendedor**")
+            col_aj1, col_aj2, col_aj3 = st.columns(3)
+            l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
+            idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
+            
+            with col_aj1:
+                linea_sel_nombre = st.selectbox("Línea", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
+            with col_aj2:
+                plazo_sel = st.selectbox("Plazo (meses)", [r[0] for r in l_sel["r"]], index=idx_plazo)
+            with col_aj3:
+                ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
+            
+            qr = st.checkbox("Cobrar el quebranto aunque BYD lo reintegre")
+            
+            # Recalcular con los ajustes
+            l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
+            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, ex_c, qr)
         else:
-            st.markdown(f"### Cuota: $ {res['cuota']:,.0f}")
-            if res["uva"]:
-                st.caption("Cuota inicial UVA")
-            else:
-                st.caption(f"Última cuota: $ {res['cuota_fin']:,.0f}")
-            st.write(f"Gasto otorgamiento ({res['gasto_pct']:.2f}%): $ {res['gasto_ars']:,.0f}")
-            st.write(f"**Debés poner:** $ {res['poner_ars']:,.0f}")
+            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_sel), dif, tot_ars, ant_ars, 0.0, False)
 
-        # --- MEJORES OPCIONES ---
-        st.markdown("### 🏆 Mejores opciones")
-        pr = st.selectbox("Priorizar:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total"])
-        
-        # Calculamos TODAS las opciones y filtramos las que alcanzan
-        opts = [evaluar_linea(l, r, dif, tot_ars, ant_ars, ex_c, qr) for l in l_validas for r in l["r"]]
-        opts = [o for o in opts if o["alcanza"]]
-        
-        if not opts:
-            st.warning("Ninguna línea alcanza a financiar este monto.")
-        else:
-            if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
-            elif pr == "Poner menos al inicio": opts.sort(key=lambda x: x["poner_ars"])
-            else: opts.sort(key=lambda x: x["costo_fin"])
-                
-            for i, o in enumerate(opts[:3]):
-                with st.expander(f"{i+1}. {o['linea']['n']} ({o['plazo']}m) - ${o['cuota']:,.0f}/mes"):
-                    st.write(f"TNA: {o['tna']}% | Inicio: $ {o['poner_ars']:,.0f} | Costo Total: $ {o['costo_fin']:,.0f}")
-    
-    st.markdown("---")
-    st.subheader("4. Mensaje WhatsApp")
-    st.text_area("Mensaje", f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame.", height=100)
+        st.markdown("### Resumen de la financiación")
+        st.write(f"- **Cuota inicial:** $ {res_final['cuota']:,.0f}")
+        if not res_final["uva"]:
+            st.write(f"- **Última cuota:** $ {res_final['cuota_fin']:,.0f}")
+        st.write(f"- **Gasto de otorgamiento:** $ {res_final['gasto_ars']:,.0f}")
+        st.write(f"- **Debe poner (sin contar el usado):** $ {res_final['poner_ars']:,.0f}")
+
+# --- PASO 5: MENSAJE ---
+st.header("5. Mensaje para el cliente")
+msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
+if financiar and dif > 0:
+    msg_defecto += f"\nFinanciación: {res_final['linea']['n']} a {res_final['plazo']} meses.\nCuota inicial: $ {res_final['cuota']:,.0f}"
+
+st.text_area("Mensaje para WhatsApp", msg_defecto, height=150)
+
+st.markdown("---")
+st.caption("Patentamiento y fletes/formularios (FyF) según la tabla de la lista. La bonificación la define el vendedor. Financiación: política de Banco Santander de octubre 2026; cuotas con sistema francés e IVA sobre el interés. No incluye seguro.")
