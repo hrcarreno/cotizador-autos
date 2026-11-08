@@ -171,23 +171,18 @@ if financiar and dif > 0:
                 
             gasto_pct = test_o["gasto_pct"] / 100
             
-            if es_usd:
-                dinero_cliente_usd = (ant_ars + usado_ars) / tc
-                tot_abonar_usd = tot_abonar
-                capital_usd = (tot_abonar_usd - dinero_cliente_usd) / (1 - gasto_pct)
-                capital_ars = capital_usd * tc
-            else:
-                dinero_cliente_ars = ant_ars + usado_ars
-                capital_ars = (tot_ars - dinero_cliente_ars) / (1 - gasto_pct)
-
             if pr == "Equilibrado (no poner extra)":
-                o = evaluar_linea(l, r, capital_ars, tot_ars, 0, 0.0, True)
-                o["mostrar_poner"] = ant_ars + usado_ars
-                o["capital_recalculado"] = capital_ars
+                dinero_cliente = ant_ars + usado_ars
+                # --- LA FÓRMULA CORRECTA ---
+                # Capital = Total - (Dinero / (1 + Gasto))
+                # Esto asegura que Anticipo Real + Gasto = Dinero Cliente
+                capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
+                
+                o = evaluar_linea(l, r, capital_eq, tot_ars, 0, 0.0, True)
+                o["mostrar_poner"] = dinero_cliente
             else:
                 o = test_o
                 o["mostrar_poner"] = test_o["poner_ars"]
-                o["capital_recalculado"] = dif
                 
             opts.append(o)
 
@@ -241,17 +236,13 @@ if financiar and dif > 0:
             if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
+                dinero_cliente = ant_ars + usado_ars
                 
-                if es_usd:
-                    dinero_cliente_usd = (ant_ars + usado_ars) / tc
-                    capital_usd = (tot_abonar - dinero_cliente_usd) / (1 - gasto_pct)
-                    capital_final = capital_usd * tc
-                else:
-                    dinero_cliente_ars = ant_ars + usado_ars
-                    capital_final = (tot_ars - dinero_cliente_ars) / (1 - gasto_pct)
+                # Fórmula corregida
+                capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
                 
                 res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
-                res_final["poner_ars"] = ant_ars + usado_ars
+                res_final["poner_ars"] = dinero_cliente
                 mostrar_capital = capital_final
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
@@ -296,7 +287,6 @@ if financiar and dif > 0:
             with col_banco:
                 st.markdown("**DATOS PARA EL BANCO (Boleto/Santander)**")
                 with st.container(border=True):
-                    # --- AQUÍ ESTÁ LA CORRECCIÓN DE LAS REFERENCIAS EN DÓLARES ---
                     ref_cap = f"u$s {mostrar_capital/tc:,.0f}" if es_usd else ""
                     ref_gasto = f"u$s {mostrar_gasto/tc:,.0f}" if es_usd else ""
                     ref_total = f"u$s {mostrar_total_banco/tc:,.0f}" if es_usd else ""
