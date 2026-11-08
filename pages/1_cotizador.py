@@ -80,14 +80,16 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # CASILLA DE BONIFICACIÓN Y CÓDIGO DISFRAZADO
+    # --- LÓGICA DE BONIFICACIÓN CORREGIDA ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=dm["bonif"])
-                st.code(generar_codigo_disfrazado(bon), language=None)
+                # Arranca en 0 para que el vendedor escriba el valor manual
+                bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=0)
+                if bon > 0:
+                    st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
 
@@ -150,8 +152,6 @@ st.header("4. Financiación")
 financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 
 res_final = None
-
-# Variables para guardar el resumen final
 mostrar_capital = dif
 mostrar_gasto = 0
 mostrar_total_banco = dif
@@ -241,13 +241,9 @@ if financiar and dif > 0:
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
         else:
-            # En vista cliente, calcular normal
             res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
 
         if res_final:
-            # Guardamos los valores para el desglose
-            mostrar_capital = res_final.get("total_cuotas", 0) - res_final.get("costo_fin", 0) # Aproximación, pero usaremos la base
-            # Recalculamos el capital real que se financia:
             if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
@@ -261,7 +257,6 @@ if financiar and dif > 0:
 
             st.markdown("### Resumen de la financiación")
             
-            # FILA DE MÉTRICAS
             col_res1, col_res2, col_res3, col_res4 = st.columns(4)
             col_res1.metric("Cuota inicial", f"$ {res_final['cuota']:,.0f}")
             if not res_final["uva"]:
