@@ -19,7 +19,6 @@ if "datos_ia" not in st.session_state:
 if "vista_cliente" not in st.session_state:
     st.session_state.vista_cliente = False
 
-# --- FUNCIÓN PARA FORMATEAR MONEDA ---
 def input_moneda(label, value, key, help=None):
     val_str = f"{value:,.0f}".replace(",", ".") if value > 0 else ""
     txt = st.text_input(label, value=val_str, key=key, help=help)
@@ -110,12 +109,13 @@ with col1:
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
-    check_ant = st.checkbox("Entrego anticipo", value=(ia_anticipo > 0))
+    check_ant = st.checkbox("Entrego anticipo", value=(ia_anticipo > 0 or True)) # Forzamos true para ver inputs
     ant_ars = 0
+    ant_usd = 0
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
-        ant_usd = input_moneda("En dólares (u$s)", 0, key="ant_usd")
+        ant_usd = input_moneda("En dólares (u$s)", 20000, key="ant_usd") # Ejemplo
         ant_ars = ant_pesos + (ant_usd * tc)
 
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
@@ -151,8 +151,6 @@ with col2:
     dif = tot_ars - ant_ars - usado_ars
 
 st.markdown("---")
-
-# --- REDISEÑO DEL PASO 3 Y 4 ---
 st.header("3 y 4. Financiación y Cuenta Final")
 financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
 
@@ -173,16 +171,28 @@ if financiar and dif > 0:
             if not test_o["alcanza"]: continue
                 
             gasto_pct = test_o["gasto_pct"] / 100
-            dinero_cliente = ant_ars + usado_ars
             
+            # --- CORRECCIÓN DE LA MATEMÁTICA EQUILIBRADA ---
+            # Si el auto es USD, trabajamos en USD. Si es ARS, trabajamos en ARS.
+            if es_usd:
+                dinero_cliente_usd = (ant_ars + usado_ars) / tc
+                tot_abonar_usd = tot_abonar
+                capital_usd = (tot_abonar_usd - dinero_cliente_usd) / (1 - gasto_pct)
+                capital_ars = capital_usd * tc
+            else:
+                dinero_cliente_ars = ant_ars + usado_ars
+                capital_ars = (tot_ars - dinero_cliente_ars) / (1 - gasto_pct)
+                capital_usd = capital_ars / tc
+
             if pr == "Equilibrado (no poner extra)":
-                dif_eq = (tot_ars - dinero_cliente) / (1 - gasto_pct)
-                anticipo_real = tot_ars - dif_eq - usado_ars
-                o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_real, 0.0, True)
-                o["mostrar_poner"] = dinero_cliente
+                # Evaluamos con el capital calculado
+                o = evaluar_linea(l, r, capital_ars, tot_ars, 0, 0.0, True) # Anticipo lo forzamos a 0 porque ya restamos el capital
+                o["mostrar_poner"] = ant_ars + usado_ars # El cliente pone exactamente lo que declaró
+                o["capital_recalculado"] = capital_ars
             else:
                 o = test_o
                 o["mostrar_poner"] = test_o["poner_ars"]
+                o["capital_recalculado"] = dif
                 
             opts.append(o)
 
@@ -236,51 +246,58 @@ if financiar and dif > 0:
             if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
-                dinero_cliente = ant_ars + usado_ars
-                dif_final = (tot_ars - dinero_cliente) / (1 - gasto_pct)
-                anticipo_real = tot_ars - dif_final - usado_ars
                 
-                res_final = evaluar_linea(l_sel, p_data, dif_final, tot_ars, anticipo_real, ex_c, qr)
-                res_final["poner_ars"] = dinero_cliente
+                if es_usd:
+                    dinero_cliente_usd = (ant_ars + usado_ars) / tc
+                    capital_usd = (tot_abonar - dinero_cliente_usd) / (1 - gasto_pct)
+                    capital_final = capital_usd * tc
+                else:
+                    dinero_cliente_ars = ant_ars + usado_ars
+                    capital_final = (tot_ars - dinero_cliente_ars) / (1 - gasto_pct)
+                
+                res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
+                res_final["poner_ars"] = ant_ars + usado_ars
+                mostrar_capital = capital_final
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                mostrar_capital = dif
         else:
             res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
+            mostrar_capital = dif
 
         if res_final:
-            if pr_actual == "Equilibrado (no poner extra)":
-                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-                gasto_pct = o_test["gasto_pct"] / 100
-                dinero_cliente = ant_ars + usado_ars
-                mostrar_capital = (tot_ars - dinero_cliente) / (1 - gasto_pct)
-            else:
-                mostrar_capital = dif
-                
             mostrar_gasto = res_final["gasto_ars"]
             mostrar_total_banco = mostrar_capital + mostrar_gasto
 
             st.markdown("---")
             st.subheader("📄 Estado de Cuenta y Financiación")
             
-            # Columnas para separar la "Cuenta del cliente" de la "Cuenta del Banco"
             col_cuenta, col_banco = st.columns(2)
             
             with col_cuenta:
                 st.markdown("**CUENTA DEL CLIENTE**")
                 with st.container(border=True):
-                    st.markdown(f"**Valor del Vehículo (con FyF y Patentamiento):** {simbolo} {tot_abonar:,.0f}")
-                    if ant_ars > 0 or usado_ars > 0:
-                        st.markdown(f"**(-) Anticipo en Efectivo:** - $ {ant_ars:,.0f}")
-                        if usado_ars > 0:
-                            st.markdown(f"**(-) Vehículo en Parte de Pago:** - $ {usado_ars:,.0f}")
+                    # Si es USD mostramos el total en USD para que cierre
+                    if es_usd:
+                        st.markdown(f"**Valor del Vehículo (USD):** u$s {tot_abonar:,.0f}")
+                        if ant_usd > 0: st.markdown(f"**(-) Anticipo en Dólares:** - u$s {ant_usd:,.0f}")
+                        if ant_pesos > 0: st.markdown(f"**(-) Anticipo en Pesos:** - ${ant_pesos:,.0f} (u$s {ant_pesos/tc:,.0f})")
+                        if usado_ars > 0: st.markdown(f"**(-) Usado:** - $ {usado_ars:,.0f} (u$s {usado_ars/tc:,.0f})")
+                        st.divider()
+                        st.markdown(f"**Capital a Financiar:** u$s {mostrar_capital/tc:,.0f} (${mostrar_capital:,.0f})")
+                        st.markdown(f"**(+) Gasto de Otorgamiento:** u$s {mostrar_gasto/tc:,.0f} (${mostrar_gasto:,.0f})")
+                    else:
+                        st.markdown(f"**Valor del Vehículo (ARS):** $ {tot_abonar:,.0f}")
+                        if ant_ars > 0: st.markdown(f"**(-) Anticipo:** - $ {ant_ars:,.0f}")
+                        if usado_ars > 0: st.markdown(f"**(-) Usado:** - $ {usado_ars:,.0f}")
+                        st.divider()
+                        st.markdown(f"**Capital a Financiar:** $ {mostrar_capital:,.0f}")
+                        st.markdown(f"**(+) Gasto de Otorgamiento:** $ {mostrar_gasto:,.0f}")
                     
-                    st.divider()
-                    st.markdown(f"**Capital a Financiar:** $ {mostrar_capital:,.0f}")
-                    st.markdown(f"**(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}% + IVA):** $ {mostrar_gasto:,.0f}")
                     st.divider()
                     st.markdown(f"### 💰 Debe poner al inicio: $ {res_final['poner_ars']:,.0f}")
                     if pr_actual == "Equilibrado (no poner extra)":
-                        st.caption("El 'Debe poner' es igual al dinero declarado. El gasto sale del valor del auto.")
+                        st.caption("El cliente pone exactamente el dinero declarado. El gasto se descuenta del valor del auto.")
 
             with col_banco:
                 st.markdown("**DATOS PARA EL BANCO (Boleto/Santander)**")
