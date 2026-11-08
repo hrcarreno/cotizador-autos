@@ -86,18 +86,23 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
+    # --- LÓGICA DE BONIFICACIÓN CORREGIDA (UN SOLO CÓDIGO) ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                st.code(generar_codigo_disfrazado(dm["bonif"]), language=None)
+                # 1. El vendedor ingresa el monto (arranca en 0)
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
+                
+                # 2. Definimos cuál es el monto final a usar
                 if bon_mod == 0:
-                    bon = dm["bonif"]
+                    bon = dm["bonif"] # Usa el de la tabla
                 else:
-                    bon = bon_mod
-                    st.code(generar_codigo_disfrazado(bon), language=None)
+                    bon = bon_mod     # Usa el que tipeó el vendedor
+                
+                # 3. Mostramos UN SOLO código con el monto que corresponda
+                st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
 
@@ -115,7 +120,7 @@ with col1:
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
-        ant_usd = input_moneda("En dólares (u$s)", 20000, key="ant_usd") # Ejemplo
+        ant_usd = input_moneda("En dólares (u$s)", 20000, key="ant_usd")
         ant_ars = ant_pesos + (ant_usd * tc)
 
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
@@ -270,7 +275,6 @@ if financiar and dif > 0:
             
             col_cuenta, col_banco = st.columns(2)
             
-            # --- FORMATEO INTELIGENTE DE MONEDA ---
             fmt = lambda v: f"u$s {v/tc:,.0f} (${v:,.0f})" if es_usd else f"$ {v:,.0f}"
 
             with col_cuenta:
