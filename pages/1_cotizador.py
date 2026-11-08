@@ -86,22 +86,16 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- LÓGICA DE BONIFICACIÓN CORREGIDA (UN SOLO CÓDIGO) ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                # 1. El vendedor ingresa el monto (arranca en 0)
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
-                
-                # 2. Definimos cuál es el monto final a usar
                 if bon_mod == 0:
-                    bon = dm["bonif"] # Usa el de la tabla
+                    bon = dm["bonif"]
                 else:
-                    bon = bon_mod     # Usa el que tipeó el vendedor
-                
-                # 3. Mostramos UN SOLO código con el monto que corresponda
+                    bon = bon_mod
                 st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
@@ -302,9 +296,14 @@ if financiar and dif > 0:
             with col_banco:
                 st.markdown("**DATOS PARA EL BANCO (Boleto/Santander)**")
                 with st.container(border=True):
-                    st.metric("Capital a pedir (Monto del auto)", f"$ {mostrar_capital:,.0f}")
-                    st.metric("Quebranto (Gasto)", f"$ {mostrar_gasto:,.0f}")
-                    st.metric("TOTAL A SOLICITAR AL BANCO", f"$ {mostrar_total_banco:,.0f}")
+                    # --- AQUÍ ESTÁ LA CORRECCIÓN DE LAS REFERENCIAS EN DÓLARES ---
+                    ref_cap = f"u$s {mostrar_capital/tc:,.0f}" if es_usd else ""
+                    ref_gasto = f"u$s {mostrar_gasto/tc:,.0f}" if es_usd else ""
+                    ref_total = f"u$s {mostrar_total_banco/tc:,.0f}" if es_usd else ""
+
+                    st.metric("Capital a pedir (Monto del auto)", f"$ {mostrar_capital:,.0f}", delta=ref_cap if es_usd else None, delta_color="off")
+                    st.metric("Quebranto (Gasto)", f"$ {mostrar_gasto:,.0f}", delta=ref_gasto if es_usd else None, delta_color="off")
+                    st.metric("TOTAL A SOLICITAR AL BANCO", f"$ {mostrar_total_banco:,.0f}", delta=ref_total if es_usd else None, delta_color="off")
                     
                     st.markdown("---")
                     st.markdown("**Condiciones de la Cuota:**")
