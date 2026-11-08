@@ -86,9 +86,16 @@ with col1:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                # Arranca en 0 para que el vendedor escriba el valor manual
-                bon = st.number_input(f"Monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=0)
-                if bon > 0:
+                # Mostramos el código por defecto de la tabla para que el vendedor sepa qué tope tiene
+                st.code(generar_codigo_disfrazado(dm["bonif"]), language=None)
+                # Y abajo el campo para que el vendedor modifique el descuento si quiere
+                bon = st.number_input(f"Modificar monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=0)
+                
+                if bon == 0:
+                    # Si el vendedor no toca el input, usamos el descuento de la tabla
+                    bon = dm["bonif"]
+                else:
+                    # Si el vendedor escribe un valor, el código cambia al nuevo monto
                     st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
