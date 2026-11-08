@@ -19,6 +19,18 @@ if "datos_ia" not in st.session_state:
 if "vista_cliente" not in st.session_state:
     st.session_state.vista_cliente = False
 
+# --- FUNCIÓN PARA FORMATEAR MONEDA ---
+def input_moneda(label, value, key, help=None):
+    # Formateamos el valor inicial (si viene de la IA o es 0)
+    val_str = f"{value:,.0f}".replace(",", ".") if value > 0 else ""
+    
+    # st.text_input nos permite poner el icono y formatear
+    txt = st.text_input(label, value=val_str, key=key, help=help)
+    
+    # Limpiamos los puntos para obtener el número real
+    num = int(re.sub(r'[^\d]', '', txt)) if txt else 0
+    return num
+
 def procesar_pedido_ia(prompt):
     if not ia_activa: return None
     system_prompt = """Sos un asistente de ventas de autos. Extraé datos y devolvé SOLO un JSON válido.
@@ -80,22 +92,22 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- LÓGICA DE BONIFICACIÓN CORREGIDA ---
+    # --- LÓGICA DE BONIFICACIÓN ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                # Mostramos el código por defecto de la tabla para que el vendedor sepa qué tope tiene
+                # Mostramos el código por defecto de la tabla
                 st.code(generar_codigo_disfrazado(dm["bonif"]), language=None)
-                # Y abajo el campo para que el vendedor modifique el descuento si quiere
-                bon = st.number_input(f"Modificar monto bonif. ({dm['moneda']})", min_value=0, step=100000, value=0)
                 
-                if bon == 0:
-                    # Si el vendedor no toca el input, usamos el descuento de la tabla
+                # Input formateado
+                bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
+                
+                if bon_mod == 0:
                     bon = dm["bonif"]
                 else:
-                    # Si el vendedor escribe un valor, el código cambia al nuevo monto
+                    bon = bon_mod
                     st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
@@ -103,7 +115,9 @@ with col1:
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
     st.header("2. Qué entrega el cliente")
-    tc = st.number_input("Dólar agencia ($)", min_value=1, step=10, value=1450)
+    
+    # El dólar también formateado
+    tc = input_moneda("Dólar agencia ($)", 1450, key="tc_input")
 
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
@@ -112,15 +126,17 @@ with col1:
     ant_ars = 0
     if check_ant:
         c1, c2 = st.columns(2)
-        ant_pesos = c1.number_input("En pesos ($)", min_value=0, step=100000, value=int(ia_anticipo))
-        ant_usd = c2.number_input("En dólares (USD)", min_value=0, step=100)
+        # Anticipo pesos
+        ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
+        # Anticipo USD (también formateado)
+        ant_usd = input_moneda("En dólares (u$s)", 0, key="ant_usd")
         ant_ars = ant_pesos + (ant_usd * tc)
 
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
     usado_ars = 0
     if check_usado:
         c3, c4 = st.columns(2)
-        tas = c3.number_input("Tasación", min_value=0, step=100000, value=int(ia_usado))
+        tas = input_moneda("Tasación", int(ia_usado), key="tas_input")
         moneda_usado = c4.selectbox("Moneda", ["Pesos", "Dólares"])
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
