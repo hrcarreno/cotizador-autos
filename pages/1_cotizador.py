@@ -66,7 +66,7 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
-# --- VARIABLES GLOBALES PARA EVITAR NAMEERROR ---
+# --- VARIABLES GLOBALES PARA EVITAR ERRORES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -95,18 +95,23 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- BONIFICACIÓN (SIN FANTASMAS) ---
+    # --- BONIFICACIÓN: EL CÓDIGO SIEMPRE VISIBLE ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
+                # Input para modificar (arranca en 0)
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
-                if bon_mod > 0:
-                    bon = bon_mod
-                    st.code(generar_codigo_disfrazado(bon), language=None)
+                
+                # Si el vendedor no escribió nada, usamos el de la tabla. Si escribió, usamos el suyo.
+                if bon_mod == 0:
+                    bon = dm["bonif"]
                 else:
-                    st.info("Ingresá el monto del descuento para generar el código.")
+                    bon = bon_mod
+                
+                # Mostramos SIEMPRE el código disfrazado
+                st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
 
