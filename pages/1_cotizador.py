@@ -6,6 +6,18 @@ from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
+# --- CSS PARA HACER LA COLUMNA DERECHA "STICKY" (FLOTANTE) ---
+st.markdown("""
+<style>
+    /* Esto hace que la segunda columna (donde está el resumen) se quede fija al scrollear */
+    [data-testid="column"]:nth-of-type(2) {
+        position: sticky;
+        top: 2rem;
+        align-self: flex-start;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- CONFIGURACIÓN IA ---
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
@@ -103,22 +115,18 @@ with col1:
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
     st.header("2. Qué entrega el cliente")
-    
-    # --- CAMBIO 1: Dólar agencia arranca en 0 ---
     tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
-    if tc == 0: tc = 1 # Evitamos división por cero si no cargaron nada
+    if tc == 0: tc = 1
 
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
-    # --- CAMBIO 2: Entrego anticipo arranca descliqueado ---
     check_ant = st.checkbox("Entrego anticipo", value=False)
     ant_ars = 0
     ant_usd = 0
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
-        # --- CAMBIO 3: En dólares arranca en 0 ---
         ant_usd = input_moneda("En dólares (u$s)", 0, key="ant_usd")
         ant_ars = ant_pesos + (ant_usd * tc)
 
@@ -142,22 +150,28 @@ with col2:
         if bon > 0:
             st.markdown(f"**Bonificación:** - {simbolo} {bon:,.0f}")
             st.markdown(f"**Precio Cotizado:** {simbolo} {precio_base:,.0f}")
+        
         st.divider()
+        
         st.markdown(f"**Fletes y Formularios (FyF):** {simbolo} {dm['fyf']:,.0f}")
         if patenta == "Concesionario":
             st.markdown(f"**Patentamiento:** {simbolo} {pat_monto:,.0f}")
         else:
-            st.markdown("*Patentamiento a cargo del cliente.*")
+            st.markdown(f"**Patentamiento:** A cargo del cliente (No incluye {simbolo} {dm['pat']:,.0f})")
+        
         st.divider()
-        st.markdown(f"#### **Total a Abonar:** {simbolo} {tot_abonar:,.0f}")
+        
+        tot_ars = tot_abonar * tc if es_usd else tot_abonar
+        
+        st.markdown(f"#### **Total a Abonar:**")
+        st.markdown(f"### {simbolo} {tot_abonar:,.0f}")
+        if es_usd:
+            st.caption(f"Equivale a $ {tot_ars:,.0f} al dólar de $ {tc:,.0f}")
 
-    tot_ars = tot_abonar * tc if es_usd else tot_abonar
     dif = tot_ars - ant_ars - usado_ars
 
 st.markdown("---")
 st.header("3 y 4. Financiación y Cuenta Final")
-
-# --- CAMBIO 4: Financiar la diferencia arranca descliqueado ---
 financiar = st.checkbox("Financiar la diferencia", value=False)
 
 res_final = None
