@@ -103,18 +103,23 @@ with col1:
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
     st.header("2. Qué entrega el cliente")
-    tc = input_moneda("Dólar agencia ($)", 1450, key="tc_input")
+    
+    # --- CAMBIO 1: Dólar agencia arranca en 0 ---
+    tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
+    if tc == 0: tc = 1 # Evitamos división por cero si no cargaron nada
 
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
-    check_ant = st.checkbox("Entrego anticipo", value=True)
+    # --- CAMBIO 2: Entrego anticipo arranca descliqueado ---
+    check_ant = st.checkbox("Entrego anticipo", value=False)
     ant_ars = 0
     ant_usd = 0
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
-        ant_usd = input_moneda("En dólares (u$s)", 20000, key="ant_usd")
+        # --- CAMBIO 3: En dólares arranca en 0 ---
+        ant_usd = input_moneda("En dólares (u$s)", 0, key="ant_usd")
         ant_ars = ant_pesos + (ant_usd * tc)
 
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
@@ -151,7 +156,9 @@ with col2:
 
 st.markdown("---")
 st.header("3 y 4. Financiación y Cuenta Final")
-financiar = st.checkbox("Financiar la diferencia", value=(dif > 0))
+
+# --- CAMBIO 4: Financiar la diferencia arranca descliqueado ---
+financiar = st.checkbox("Financiar la diferencia", value=False)
 
 res_final = None
 mostrar_capital = dif
@@ -173,11 +180,7 @@ if financiar and dif > 0:
             
             if pr == "Equilibrado (no poner extra)":
                 dinero_cliente = ant_ars + usado_ars
-                # --- LA FÓRMULA CORRECTA ---
-                # Capital = Total - (Dinero / (1 + Gasto))
-                # Esto asegura que Anticipo Real + Gasto = Dinero Cliente
                 capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
-                
                 o = evaluar_linea(l, r, capital_eq, tot_ars, 0, 0.0, True)
                 o["mostrar_poner"] = dinero_cliente
             else:
@@ -237,8 +240,6 @@ if financiar and dif > 0:
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
                 dinero_cliente = ant_ars + usado_ars
-                
-                # Fórmula corregida
                 capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
                 
                 res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
@@ -276,7 +277,7 @@ if financiar and dif > 0:
                     
                     st.divider()
                     st.markdown(f"**Capital a Financiar:** {fmt(mostrar_capital)}")
-                    st.markdown(f"**(+) Gasto de Otorgamiento:** {fmt(mostrar_gasto)}")
+                    st.markdown(f"**(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%):** {fmt(mostrar_gasto)}")
                     st.divider()
                     
                     debe_poner_txt = fmt(res_final['poner_ars'])
