@@ -64,8 +64,16 @@ with st.sidebar:
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
 
-# --- DIVIDIMOS EN COLUMNAS ---
 col1, col2 = st.columns([1.2, 1])
+
+# --- VARIABLES GLOBALES PARA EVITAR NAMEERROR ---
+tc = 1
+ant_ars = 0
+ant_usd = 0
+usado_ars = 0
+ant_pesos = 0
+tot_ars = 0
+dif = 0
 
 with col1:
     st.header("1. Vehículo")
@@ -87,14 +95,13 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- BONIFICACIÓN ---
+    # --- BONIFICACIÓN (SIN FANTASMAS) ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
-                # SOLO se aplica si el vendedor escribió un número mayor a 0
                 if bon_mod > 0:
                     bon = bon_mod
                     st.code(generar_codigo_disfrazado(bon), language=None)
@@ -113,8 +120,6 @@ with col1:
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
     check_ant = st.checkbox("Entrego anticipo", value=False)
-    ant_ars = 0
-    ant_usd = 0
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
@@ -122,7 +127,6 @@ with col1:
         ant_ars = ant_pesos + (ant_usd * tc)
 
     check_usado = st.checkbox("Entrego vehículo en parte de pago", value=(ia_usado > 0))
-    usado_ars = 0
     if check_usado:
         c3, c4 = st.columns(2)
         tas = input_moneda("Tasación", int(ia_usado), key="tas_input")
@@ -130,8 +134,7 @@ with col1:
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
 with col2:
-    # --- AQUÍ ESTÁ EL TRUCO PARA HACERLO FLOTANTE EN STREAMLIT ---
-    with st.container(height=700, border=False):
+    with st.container(height=600, border=False):
         st.markdown("### Resumen de Cotización")
         
         precio_base = dm["precio"] - bon
@@ -154,20 +157,18 @@ with col2:
             
             st.divider()
             
-            # Mostramos el total base
             st.markdown(f"#### **Total a Abonar:**")
             st.markdown(f"### {simbolo} {tot_abonar:,.0f}")
             
-            # Si hay anticipo o usado, lo mostramos restando
+            tot_ars = tot_abonar * tc if es_usd else tot_abonar
+            dif = tot_ars - ant_ars - usado_ars
+            
             if ant_ars > 0 or usado_ars > 0:
                 st.divider()
                 if ant_ars > 0:
                     st.markdown(f"**(-) Anticipo:** - $ {ant_ars:,.0f}")
                 if usado_ars > 0:
                     st.markdown(f"**(-) Vehículo en Parte de Pago:** - $ {usado_ars:,.0f}")
-                
-                tot_ars = tot_abonar * tc if es_usd else tot_abonar
-                dif = tot_ars - ant_ars - usado_ars
                 
                 st.markdown(f"**Diferencia a Financiar:**")
                 if es_usd:
