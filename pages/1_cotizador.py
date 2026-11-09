@@ -6,18 +6,6 @@ from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
-# --- CSS PARA HACER LA COLUMNA DERECHA "STICKY" (FLOTANTE) ---
-st.markdown("""
-<style>
-    /* Esto hace que la segunda columna (donde está el resumen) se quede fija al scrollear */
-    [data-testid="column"]:nth-of-type(2) {
-        position: sticky;
-        top: 2rem;
-        align-self: flex-start;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # --- CONFIGURACIÓN IA ---
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
@@ -76,6 +64,7 @@ with st.sidebar:
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
 
+# --- DIVIDIMOS EN COLUMNAS ---
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
@@ -98,17 +87,19 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
+    # --- BONIFICACIÓN ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
-                if bon_mod == 0:
-                    bon = dm["bonif"]
-                else:
+                # SOLO se aplica si el vendedor escribió un número mayor a 0
+                if bon_mod > 0:
                     bon = bon_mod
-                st.code(generar_codigo_disfrazado(bon), language=None)
+                    st.code(generar_codigo_disfrazado(bon), language=None)
+                else:
+                    st.info("Ingresá el monto del descuento para generar el código.")
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
 
@@ -139,36 +130,50 @@ with col1:
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
 with col2:
-    st.markdown("### Resumen de Cotización")
-    
-    precio_base = dm["precio"] - bon
-    pat_monto = dm["pat"] if patenta == "Concesionario" else 0
-    tot_abonar = precio_base + dm["fyf"] + pat_monto
+    # --- AQUÍ ESTÁ EL TRUCO PARA HACERLO FLOTANTE EN STREAMLIT ---
+    with st.container(height=700, border=False):
+        st.markdown("### Resumen de Cotización")
+        
+        precio_base = dm["precio"] - bon
+        pat_monto = dm["pat"] if patenta == "Concesionario" else 0
+        tot_abonar = precio_base + dm["fyf"] + pat_monto
 
-    with st.container(border=True):
-        st.markdown(f"**Precio de Lista:** {simbolo} {dm['precio']:,.0f}")
-        if bon > 0:
-            st.markdown(f"**Bonificación:** - {simbolo} {bon:,.0f}")
-            st.markdown(f"**Precio Cotizado:** {simbolo} {precio_base:,.0f}")
-        
-        st.divider()
-        
-        st.markdown(f"**Fletes y Formularios (FyF):** {simbolo} {dm['fyf']:,.0f}")
-        if patenta == "Concesionario":
-            st.markdown(f"**Patentamiento:** {simbolo} {pat_monto:,.0f}")
-        else:
-            st.markdown(f"**Patentamiento:** A cargo del cliente (No incluye {simbolo} {dm['pat']:,.0f})")
-        
-        st.divider()
-        
-        tot_ars = tot_abonar * tc if es_usd else tot_abonar
-        
-        st.markdown(f"#### **Total a Abonar:**")
-        st.markdown(f"### {simbolo} {tot_abonar:,.0f}")
-        if es_usd:
-            st.caption(f"Equivale a $ {tot_ars:,.0f} al dólar de $ {tc:,.0f}")
-
-    dif = tot_ars - ant_ars - usado_ars
+        with st.container(border=True):
+            st.markdown(f"**Precio de Lista:** {simbolo} {dm['precio']:,.0f}")
+            if bon > 0:
+                st.markdown(f"**Bonificación:** - {simbolo} {bon:,.0f}")
+                st.markdown(f"**Precio Cotizado:** {simbolo} {precio_base:,.0f}")
+            
+            st.divider()
+            
+            st.markdown(f"**Fletes y Formularios (FyF):** {simbolo} {dm['fyf']:,.0f}")
+            if patenta == "Concesionario":
+                st.markdown(f"**Patentamiento:** {simbolo} {pat_monto:,.0f}")
+            else:
+                st.markdown(f"**Patentamiento:** A cargo del cliente (No incluye {simbolo} {dm['pat']:,.0f})")
+            
+            st.divider()
+            
+            # Mostramos el total base
+            st.markdown(f"#### **Total a Abonar:**")
+            st.markdown(f"### {simbolo} {tot_abonar:,.0f}")
+            
+            # Si hay anticipo o usado, lo mostramos restando
+            if ant_ars > 0 or usado_ars > 0:
+                st.divider()
+                if ant_ars > 0:
+                    st.markdown(f"**(-) Anticipo:** - $ {ant_ars:,.0f}")
+                if usado_ars > 0:
+                    st.markdown(f"**(-) Vehículo en Parte de Pago:** - $ {usado_ars:,.0f}")
+                
+                tot_ars = tot_abonar * tc if es_usd else tot_abonar
+                dif = tot_ars - ant_ars - usado_ars
+                
+                st.markdown(f"**Diferencia a Financiar:**")
+                if es_usd:
+                    st.markdown(f"### u$s {dif/tc:,.0f} (${dif:,.0f})")
+                else:
+                    st.markdown(f"### $ {dif:,.0f}")
 
 st.markdown("---")
 st.header("3 y 4. Financiación y Cuenta Final")
