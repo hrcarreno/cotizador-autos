@@ -78,7 +78,7 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
-# --- VARIABLES GLOBALES PARA EVITAR ERRORES ---
+# --- VARIABLES GLOBALES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -110,7 +110,6 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- BONIFICACIÓN ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
@@ -356,10 +355,46 @@ if financiar and dif > 0:
                 except Exception as e:
                     st.error(f"Error al guardar en Supabase: {e}")
 
+# --- PASO 5: MENSAJE PROFESIONAL PARA EL CLIENTE ---
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
-msg_defecto = f"Hola! Te paso la cotización de tu BYD {mod_sel}.\nTotal: {simbolo} {tot_abonar:,.0f}\nCualquier duda avisame."
-if financiar and dif > 0 and res_final:
-    msg_defecto += f"\nFinanciación: {res_final['linea']['n']} a {res_final['plazo']} meses.\nCuota inicial: $ {res_final['cuota']:,.0f}"
 
-st.text_area("Copiar y pegar en WhatsApp", msg_defecto, height=120)
+# Armamos el mensaje con lógica condicional
+msg = f"¡Hola! 👋 Te paso el detalle de la cotización por tu *BYD {mod_sel}*:\n\n"
+msg += f"📋 *DETALLE DEL VEHÍCULO:*\n"
+msg += f"• Precio de Lista: {simbolo} {dm['precio']:,.0f}\n"
+if bon > 0:
+    msg += f"• Bonificación aplicada: - {simbolo} {bon:,.0f}\n"
+    msg += f"• Precio Cotizado: {simbolo} {precio_base:,.0f}\n"
+msg += f"• Fletes y Formularios: {simbolo} {dm['fyf']:,.0f}\n"
+if patenta == "Concesionario":
+    msg += f"• Patentamiento: {simbolo} {pat_monto:,.0f}\n"
+else:
+    msg += f"• Patentamiento: A tu cargo\n"
+msg += f"\n💰 *TOTAL A ABONAR:* {simbolo} {tot_abonar:,.0f}\n"
+
+if ant_ars > 0 or usado_ars > 0:
+    msg += f"\n💵 *FORMA DE PAGO:*\n"
+    if ant_ars > 0:
+        msg += f"• Anticipo: $ {ant_ars:,.0f}\n"
+    if usado_ars > 0:
+        msg += f"• Vehículo en parte de pago: $ {usado_ars:,.0f}\n"
+    msg += f"• Diferencia a Financiar: $ {dif:,.0f}\n"
+
+if financiar and dif > 0 and res_final:
+    msg += f"\n🏦 *CONDICIONES DE FINANCIACIÓN (Banco Santander):*\n"
+    msg += f"• Línea: {res_final['linea']['n']}\n"
+    msg += f"• Plazo: {res_final['plazo']} meses\n"
+    msg += f"• TNA: {res_final['tna']}%\n"
+    if not res_final["uva"]:
+        msg += f"• Primera Cuota: $ {res_final['cuota']:,.0f}\n"
+        msg += f"• Última Cuota: $ {res_final['cuota_fin']:,.0f}\n"
+    else:
+        msg += f"• Cuota Inicial (UVA): $ {res_final['cuota']:,.0f} (sujeta a ajuste)\n"
+    msg += f"• Dinero a poner al inicio (incluye gastos): {fmt(res_final['poner_ars'])}\n"
+
+msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. No incluye seguro.*\n"
+msg += f"Quedo a tu disposición por cualquier duda. ¡Saludos!"
+
+# Mostramos el mensaje en un cuadro de texto para que lo puedan copiar
+st.text_area("Copiar y pegar en WhatsApp", msg, height=250)
