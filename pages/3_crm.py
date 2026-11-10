@@ -5,6 +5,24 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="CRM - Cotizador", layout="wide")
 
+# --- TRUCO CSS PARA TRADUCIR MENÚS DE STREAMLIT ---
+st.markdown("""
+<style>
+    /* Ocultamos los textos en inglés del menú de la tabla y ponemos nuestros propios emojis */
+    [data-testid="stDataFrameResizeHandle"] + div { display: none; } /* Opcional */
+    /* En el menú contextual de la columna, ocultamos el texto en inglés */
+    div[role="menu"] > div > div > span { font-size: 0; }
+    div[role="menu"] > div > div > span::before { font-size: 14px; }
+    
+    /* Traducciones manuales con CSS */
+    div[role="menu"] > div:nth-child(1) > div > span::before { content: "⬆️ Orden Ascendente"; }
+    div[role="menu"] > div:nth-child(2) > div > span::before { content: "⬇️ Orden Descendente"; }
+    div[role="menu"] > div:nth-child(3) > div > span::before { content: "↔️ Ajustar Ancho"; }
+    div[role="menu"] > div:nth-child(4) > div > span::before { content: "📌 Fijar Columna"; }
+    div[role="menu"] > div:nth-child(5) > div > span::before { content: "🙈 Ocultar Columna"; }
+</style>
+""", unsafe_allow_html=True)
+
 # --- CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
@@ -18,14 +36,12 @@ except Exception as e:
 
 st.title("📋 CRM de Leads")
 
-# --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3 = st.tabs(["📊 Leads Activos", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 
 # ==========================================
-# PESTAÑA 1: LEADS ACTIVOS (CON BORRADO INDIVIDUAL)
+# PESTAÑA 1: LEADS ACTIVOS
 # ==========================================
 with tab1:
-    # Alertas de atrasados
     try:
         response = supabase.table("leads").select("*").execute()
         leads_raw = response.data
@@ -35,18 +51,16 @@ with tab1:
                 df_alerta['fecha_proximo_contacto'] = pd.to_datetime(df_alerta['fecha_proximo_contacto']).dt.date
                 hoy = date.today()
                 atrasados = df_alerta[(df_alerta['fecha_proximo_contacto'] < hoy) & (df_alerta['estado'] != 'Cerrado')]
-                
                 if not atrasados.empty:
                     st.warning(f"🚨 **¡ATENCIÓN!** Tenés {len(atrasados)} lead(s) atrasado(s) en su atención.")
     except Exception:
         pass
 
-    # Formulario Nuevo Lead
     with st.expander("➕ Cargar Nuevo Lead Manualmente"):
         with st.form("nuevo_lead"):
             c1, c2 = st.columns(2)
-            nombre = c1.text_input("Nombre del cliente", placeholder="Ej: Juan Pérez")
-            telefono = c1.text_input("Teléfono", placeholder="Ej: 11 2345-6789")
+            nombre = c1.text_input("Nombre del cliente")
+            telefono = c1.text_input("Teléfono")
             origen = c2.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Teléfono", "Presencial", "Excel"])
             modelo = c2.selectbox("Modelo de interés", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "TI7", "Seal 5", "Otro"])
             fecha_prox = st.date_input("Fecha próximo contacto", value=date.today() + timedelta(days=1))
@@ -59,24 +73,21 @@ with tab1:
                         "modelo_interes": modelo, "estado": "Nuevo",
                         "fecha_proximo_contacto": str(fecha_prox), "notas": notas
                     }).execute()
-                    st.success("¡Lead guardado exitosamente!")
+                    st.success("¡Lead guardado!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al guardar: {e}")
+                    st.error(f"Error: {e}")
 
-    # Listado de Leads
     st.subheader("Listado de Leads")
     try:
         response = supabase.table("leads").select("*").order("id", desc=True).execute()
         leads_raw = response.data
         if not leads_raw:
-            st.info("No hay leads cargados todavía.")
+            st.info("No hay leads cargados.")
         else:
             df = pd.DataFrame(leads_raw)
-            
             estados_disponibles = ["Todos"] + list(df['estado'].unique())
             filtro_estado = st.selectbox("Filtrar por estado", estados_disponibles)
-            
             if filtro_estado != "Todos":
                 df = df[df['estado'] == filtro_estado]
                 
@@ -87,7 +98,6 @@ with tab1:
                 
                 with st.expander(f"{icono}{row['nombre']} - {row['modelo_interes']} ({row['estado']})"):
                     c1, c2, c3 = st.columns([2, 2, 1])
-                    
                     with c1:
                         st.write(f"**Teléfono:** {row['telefono']}")
                         st.write(f"**Origen:** {row['origen']}")
@@ -96,38 +106,25 @@ with tab1:
                         st.write(f"**Notas:** {row['notas']}")
                     with c3:
                         if st.button("🗑️ Eliminar", key=f"del_{row['id']}", type="secondary"):
-                            try:
-                                supabase.table("leads").delete().eq("id", row['id']).execute()
-                                st.success("Lead eliminado")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                            supabase.table("leads").delete().eq("id", row['id']).execute()
+                            st.rerun()
                     
                     st.divider()
-                    
                     opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
                     idx_actual = opciones_estado.index(row['estado']) if row['estado'] in opciones_estado else 0
-                    
                     nuevo_estado = st.selectbox(f"Actualizar estado", opciones_estado, index=idx_actual, key=f"estado_{row['id']}")
-                    
                     if st.button("Actualizar Estado", key=f"btn_{row['id']}"):
-                        try:
-                            supabase.table("leads").update({"estado": nuevo_estado}).eq("id", row['id']).execute()
-                            st.success("Estado actualizado")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-
+                        supabase.table("leads").update({"estado": nuevo_estado}).eq("id", row['id']).execute()
+                        st.rerun()
     except Exception as e:
-        st.error(f"Error al cargar los leads: {e}")
+        st.error(f"Error: {e}")
 
 
 # ==========================================
-# PESTAÑA 2: BORRADO MÚLTIPLE
+# PESTAÑA 2: BORRADO MÚLTIPLE (CON SELECCIONAR TODO REAL)
 # ==========================================
 with tab2:
     st.subheader("Borrado Múltiple de Leads")
-    st.write("Seleccioná los leads que querés eliminar de la base de datos. Esta acción es irreversible.")
     
     try:
         response = supabase.table("leads").select("id, nombre, telefono, modelo_interes, origen").order("id", desc=True).execute()
@@ -138,23 +135,29 @@ with tab2:
         else:
             df_borrar = pd.DataFrame(leads_raw)
             
-            # Creamos la columna 'Seleccionar' con False por defecto
+            # Creamos la columna booleana
             df_borrar["Seleccionar"] = False
             cols = ["Seleccionar"] + [c for c in df_borrar.columns if c != "Seleccionar"]
             df_borrar = df_borrar[cols]
 
-            # --- BOTONES PARA SELECCIONAR/DESELECCIONAR TODO ---
+            # --- BOTONES DE SELECCIÓN MASIVA CON SESSION STATE ---
+            if "select_all_trigger" not in st.session_state:
+                st.session_state.select_all_trigger = False
+
             col_btn1, col_btn2, _ = st.columns([1, 1, 2])
             
             if col_btn1.button("✅ Seleccionar Todo", use_container_width=True):
-                df_borrar["Seleccionar"] = True
+                st.session_state.select_all_trigger = True
                 st.rerun()
                 
             if col_btn2.button("❌ Deseleccionar Todo", use_container_width=True):
-                df_borrar["Seleccionar"] = False
+                st.session_state.select_all_trigger = False
                 st.rerun()
 
-            # --- TABLA EDITABLE CON TRADUCCIÓN AL ESPAÑOL ---
+            # Si el botón de "Seleccionar Todo" fue presionado, forzamos los valores en el DataFrame
+            if st.session_state.select_all_trigger:
+                df_borrar["Seleccionar"] = True
+
             df_seleccion = st.data_editor(
                 df_borrar,
                 hide_index=True,
@@ -167,10 +170,10 @@ with tab2:
                     "modelo_interes": st.column_config.TextColumn("Modelo", disabled=True),
                     "origen": st.column_config.TextColumn("Origen", disabled=True),
                 },
-                # Acá forzamos la traducción de los menús al español
                 key="tabla_borrado"
             )
             
+            # Filtramos los seleccionados
             seleccionados = df_seleccion[df_seleccion["Seleccionar"] == True]
             
             if not seleccionados.empty:
@@ -180,15 +183,16 @@ with tab2:
                     ids_a_borrar = seleccionados["id"].tolist()
                     try:
                         supabase.table("leads").delete().in_("id", ids_a_borrar).execute()
-                        st.success(f"¡Se eliminaron {len(ids_a_borrar)} leads exitosamente!")
+                        st.success(f"¡Se eliminaron {len(ids_a_borrar)} leads!")
+                        st.session_state.select_all_trigger = False # Reseteamos el botón
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Error al eliminar: {e}")
+                        st.error(f"Error: {e}")
             else:
-                st.info("Tildá la casilla en la primera columna de la tabla para habilitar el borrado.")
+                st.info("Tildá la casilla en la primera columna para habilitar el borrado.")
                 
     except Exception as e:
-        st.error(f"Error al cargar la tabla: {e}")
+        st.error(f"Error: {e}")
 
 
 # ==========================================
@@ -196,16 +200,15 @@ with tab2:
 # ==========================================
 with tab3:
     st.subheader("Importar Leads desde Excel")
-    st.write("Subí tu planilla. El sistema buscará columnas llamadas Nombre, Teléfono, Origen, Modelo y Notas.")
     archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
     
     if archivo_excel is not None:
         try:
             df_excel = pd.read_excel(archivo_excel)
-            st.write("Vista previa de los datos a importar:")
+            st.write("Vista previa:")
             st.dataframe(df_excel.head(5))
             
-            if st.button("Confirmar e Importar a la Base de Datos", type="primary"):
+            if st.button("Confirmar e Importar", type="primary"):
                 exito = 0
                 errores = 0
                 for index, row in df_excel.iterrows():
@@ -217,20 +220,15 @@ with tab3:
                         notas = str(row.get('notas', row.get('Notas', row.get('Comentarios', ''))))
                         
                         supabase.table("leads").insert({
-                            "nombre": nombre,
-                            "telefono": telefono,
-                            "origen": origen,
-                            "modelo_interes": modelo,
-                            "estado": "Nuevo",
-                            "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
-                            "notas": notas
+                            "nombre": nombre, "telefono": telefono, "origen": origen,
+                            "modelo_interes": modelo, "estado": "Nuevo",
+                            "fecha_proximo_contacto": str(date.today() + timedelta(days=1)), "notas": notas
                         }).execute()
                         exito += 1
                     except Exception as e:
                         errores += 1
                 
-                st.success(f"¡Importación terminada! Se cargaron {exito} leads. Errores: {errores}.")
+                st.success(f"¡Importados {exito} leads! Errores: {errores}.")
                 st.rerun()
-                
         except Exception as e:
-            st.error(f"Error al leer el archivo: {e}")
+            st.error(f"Error al leer archivo: {e}")
