@@ -1,22 +1,29 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime, timedelta
-from st_supabase_connection import SupabaseConnection
+from datetime import date, timedelta
+from supabase import create_client, Client
 
 st.set_page_config(page_title="CRM - Cotizador", layout="wide")
 
 # --- CONEXIÓN SUPABASE ---
+@st.cache_resource
+def init_connection() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
 try:
-    conn = st.connection("supabase", type=SupabaseConnection)
-except Exception:
-    st.error("Error de conexión con Supabase. Revisá los Secrets.")
+    supabase = init_connection()
+except Exception as e:
+    st.error(f"Error de conexión con Supabase: {e}")
     st.stop()
 
 st.title("📋 CRM de Leads")
 
 # --- ALERTAS DE LEADS ATRASADOS ---
 try:
-    leads_raw = conn.query("*", table="leads", ttl="10s").execute().data
+    response = supabase.table("leads").select("*").execute()
+    leads_raw = response.data
     if leads_raw:
         df_alerta = pd.DataFrame(leads_raw)
         if 'fecha_proximo_contacto' in df_alerta.columns:
@@ -42,7 +49,7 @@ with st.expander("➕ Cargar Nuevo Lead"):
         
         if st.form_submit_button("Guardar Lead", type="primary"):
             try:
-                conn.table("leads").insert({
+                supabase.table("leads").insert({
                     "nombre": nombre,
                     "telefono": telefono,
                     "origen": origen,
@@ -59,7 +66,8 @@ with st.expander("➕ Cargar Nuevo Lead"):
 # --- LISTADO DE LEADS ---
 st.subheader("Leads Registrados")
 try:
-    leads_raw = conn.query("*", table="leads", ttl="10s").execute().data
+    response = supabase.table("leads").select("*").order("id", desc=True).execute()
+    leads_raw = response.data
     if not leads_raw:
         st.info("No hay leads cargados todavía. Usá el botón de arriba para agregar el primero.")
     else:
@@ -73,7 +81,6 @@ try:
             df = df[df['estado'] == filtro_estado]
             
         for index, row in df.iterrows():
-            # Color de alerta si está atrasado
             fecha_c = pd.to_datetime(row['fecha_proximo_contacto']).date()
             atrasado = fecha_c < date.today() and row['estado'] != 'Cerrado'
             icono = "🔴 " if atrasado else "🟢 "
@@ -83,18 +90,18 @@ try:
                 c1.write(f"**Teléfono:** {row['telefono']}")
                 c1.write(f"**Origen:** {row['origen']}")
                 c2.write(f"**Próximo Contacto:** {fecha_c.strftime('%d/%m/%Y')}")
-                c2.write(f"**Fecha de Alta:** {row['created_at'][:10] if 'created_at' in row else 'N/A'}")
                 c3.write(f"**Notas:** {row['notas']}")
                 
                 # Cambiar estado
+                opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
+                idx_actual = opciones_estado.index(row['estado']) if row['estado'] in opciones_estado else 0
+                
                 nuevo_estado = st.selectbox(f"Actualizar estado para {row['nombre']}", 
-                                            ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"], 
-                                            index=["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"].index(row['estado']) if row['estado'] in ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"] else 0,
-                                            key=f"estado_{row['id']}")
+                                            opciones_estado, index=idx_actual, key=f"estado_{row['id']}")
                 
                 if st.button("Actualizar", key=f"btn_{row['id']}"):
                     try:
-                        conn.table("leads").update({"estado": nuevo_estado}).eq("id", row['id']).execute()
+                        supabase.table("leads").update({"estado": nuevo_estado}).eq("id", row['id']).execute()
                         st.success("Estado actualizado")
                         st.rerun()
                     except Exception as e:
