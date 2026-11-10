@@ -7,6 +7,11 @@ from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
+# --- SEGURIDAD ---
+if not st.session_state.get("logueado"):
+    st.error("Debés iniciar sesión.")
+    st.stop()
+
 # --- CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
@@ -78,7 +83,6 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
-# --- VARIABLES GLOBALES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -336,30 +340,20 @@ if financiar and dif > 0:
                     st.write(f"**Plazo:** {res_final['plazo']} meses")
                     st.write(f"**TNA:** {res_final['tna']}%")
 
-            # --- BOTÓN PARA GUARDAR EN SUPABASE ---
             if st.button("💾 Guardar esta cotización en el CRM", type="primary", use_container_width=True):
                 try:
                     supabase.table("cotizaciones").insert({
-                        "modelo": mod_sel,
-                        "precio_total": tot_abonar,
-                        "moneda": dm["moneda"],
-                        "capital_financiado": mostrar_capital,
-                        "gasto_otorgamiento": mostrar_gasto,
-                        "cuota_inicial": res_final["cuota"],
-                        "plazo_meses": res_final["plazo"],
-                        "linea": res_final["linea"]["n"],
-                        "anticipo": ant_ars,
-                        "usado": usado_ars
+                        "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
+                        "capital_financiado": mostrar_capital, "gasto_otorgamiento": mostrar_gasto,
+                        "cuota_inicial": res_final["cuota"], "plazo_meses": res_final["plazo"],
+                        "linea": res_final["linea"]["n"], "anticipo": ant_ars, "usado": usado_ars
                     }).execute()
                     st.success("¡Cotización guardada en el CRM exitosamente!")
                 except Exception as e:
                     st.error(f"Error al guardar en Supabase: {e}")
 
-# --- PASO 5: MENSAJE PROFESIONAL PARA EL CLIENTE ---
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
-
-# Armamos el mensaje con lógica condicional
 msg = f"¡Hola! 👋 Te paso el detalle de la cotización por tu *BYD {mod_sel}*:\n\n"
 msg += f"📋 *DETALLE DEL VEHÍCULO:*\n"
 msg += f"• Precio de Lista: {simbolo} {dm['precio']:,.0f}\n"
@@ -375,10 +369,8 @@ msg += f"\n💰 *TOTAL A ABONAR:* {simbolo} {tot_abonar:,.0f}\n"
 
 if ant_ars > 0 or usado_ars > 0:
     msg += f"\n💵 *FORMA DE PAGO:*\n"
-    if ant_ars > 0:
-        msg += f"• Anticipo: $ {ant_ars:,.0f}\n"
-    if usado_ars > 0:
-        msg += f"• Vehículo en parte de pago: $ {usado_ars:,.0f}\n"
+    if ant_ars > 0: msg += f"• Anticipo: $ {ant_ars:,.0f}\n"
+    if usado_ars > 0: msg += f"• Vehículo en parte de pago: $ {usado_ars:,.0f}\n"
     msg += f"• Diferencia a Financiar: $ {dif:,.0f}\n"
 
 if financiar and dif > 0 and res_final:
@@ -396,5 +388,4 @@ if financiar and dif > 0 and res_final:
 msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. No incluye seguro.*\n"
 msg += f"Quedo a tu disposición por cualquier duda. ¡Saludos!"
 
-# Mostramos el mensaje en un cuadro de texto para que lo puedan copiar
 st.text_area("Copiar y pegar en WhatsApp", msg, height=250)
