@@ -149,7 +149,7 @@ with col1:
 
 with col2:
     with st.container(height=600, border=False):
-        st.markdown("### Resumen de Cotización")
+        st.markdown("### Resumen Rápido")
         
         precio_base = dm["precio"] - bon
         pat_monto = dm["pat"] if patenta == "Concesionario" else 0
@@ -159,40 +159,19 @@ with col2:
             st.markdown(f"**Precio de Lista:** {simbolo} {dm['precio']:,.0f}")
             if bon > 0:
                 st.markdown(f"**Bonificación:** - {simbolo} {bon:,.0f}")
-                st.markdown(f"**Precio Cotizado:** {simbolo} {precio_base:,.0f}")
-            
-            st.divider()
-            
-            st.markdown(f"**Fletes y Formularios (FyF):** {simbolo} {dm['fyf']:,.0f}")
+            st.markdown(f"**Fletes y Formularios:** {simbolo} {dm['fyf']:,.0f}")
             if patenta == "Concesionario":
                 st.markdown(f"**Patentamiento:** {simbolo} {pat_monto:,.0f}")
             else:
-                st.markdown(f"**Patentamiento:** A cargo del cliente (No incluye {simbolo} {dm['pat']:,.0f})")
+                st.markdown(f"**Patentamiento:** A cargo del cliente")
             
             st.divider()
-            
-            st.markdown(f"#### **Total a Abonar:**")
-            st.markdown(f"### {simbolo} {tot_abonar:,.0f}")
-            
-            tot_ars = tot_abonar * tc if es_usd else tot_abonar
-            dif = tot_ars - ant_ars - usado_ars
-            
-            if ant_ars > 0 or usado_ars > 0:
-                st.divider()
-                if ant_ars > 0:
-                    st.markdown(f"**(-) Anticipo:** - $ {ant_ars:,.0f}")
-                if usado_ars > 0:
-                    st.markdown(f"**(-) Vehículo en Parte de Pago:** - $ {usado_ars:,.0f}")
-                
-                st.markdown(f"**Diferencia a Financiar:**")
-                if es_usd:
-                    st.markdown(f"### u$s {dif/tc:,.0f} (${dif:,.0f})")
-                else:
-                    st.markdown(f"### $ {dif:,.0f}")
+            st.markdown(f"#### **Total Auto:** {simbolo} {tot_abonar:,.0f}")
 
 st.markdown("---")
-st.header("3 y 4. Financiación y Cuenta Final")
-financiar = st.checkbox("Financiar la diferencia", value=False)
+st.header("3 y 4. Financiación y Cierre")
+
+financiar = st.checkbox("Simular Financiación", value=False)
 
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
@@ -204,9 +183,7 @@ if financiar and dif > 0:
         for r in l["r"]:
             test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
             if not test_o["alcanza"]: continue
-                
             gasto_pct = test_o["gasto_pct"] / 100
-            
             if pr == "Equilibrado (no poner extra)":
                 dinero_cliente = ant_ars + usado_ars
                 capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
@@ -215,7 +192,6 @@ if financiar and dif > 0:
             else:
                 o = test_o
                 o["mostrar_poner"] = test_o["poner_ars"]
-                
             opts.append(o)
 
     if not opts:
@@ -230,121 +206,109 @@ if financiar and dif > 0:
         for i, o in enumerate(opts[:3]):
             with cols_opts[i]:
                 with st.container(border=True):
-                    st.markdown(f"**Opción {i+1}**")
-                    st.markdown(f"{o['linea']['n']}")
-                    st.markdown(f"**Cuota: $ {o['cuota']:,.0f}**")
+                    st.markdown(f"**{o['linea']['n']}**")
+                    st.markdown(f"### Cuota: $ {o['cuota']:,.0f}")
                     st.caption(f"{o['plazo']} meses | Debe poner: ${o['mostrar_poner']:,.0f}")
-                    if st.button("Elegir", key=f"btn_{i}", use_container_width=True):
+                    if st.button("Elegir", key=f"btn_{i}", use_container_width=True, type="primary"):
                         st.session_state["linea_elegida"] = o["linea"]["n"]
                         st.session_state["plazo_elegido"] = o["plazo"]
                         st.session_state["prioridad_elegida"] = pr
 
-        st.subheader("Opción elegida")
+        # --- ELECCIÓN Y DESGLOSE FINAL (REDISEÑADO) ---
+        st.markdown("---")
         linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
         plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
         pr_actual = st.session_state.get("prioridad_elegida", pr)
         
-        st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
-        
         l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
-        
-        # --- CORRECCIÓN DEL ERROR STOPITERATION ---
-        # Buscamos el índice del plazo, si no existe en esta línea, usamos el índice 0
         idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
         
-        if not st.session_state.vista_cliente:
-            st.markdown("**Ajustes del vendedor**")
-            col_aj1, col_aj2, col_aj3 = st.columns(3)
-            
-            with col_aj1:
-                linea_sel_nombre = st.selectbox("Línea", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
-            with col_aj2:
-                plazo_sel = st.selectbox("Plazo (meses)", [r[0] for r in l_sel["r"]], index=idx_plazo)
-            with col_aj3:
-                ex_c = st.number_input("Adicional concesionario (%)", min_value=0.0, step=0.1)
-            
-            qr = st.checkbox("Cobrar el quebranto", value=True)
-            
-            l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
-            
-            # --- SEGUNDA CORRECCIÓN DE SEGURIDAD ---
-            # Si por alguna razón el plazo_sel no está en la nueva línea, tomamos el primero
-            p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
-            
-            if pr_actual == "Equilibrado (no poner extra)":
-                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-                gasto_pct = o_test["gasto_pct"] / 100
-                dinero_cliente = ant_ars + usado_ars
-                capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
-                
-                res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
-                res_final["poner_ars"] = dinero_cliente
-                mostrar_capital = capital_final
-            else:
-                res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-                mostrar_capital = dif
+        col_aj1, col_aj2, col_aj3 = st.columns(3)
+        with col_aj1:
+            linea_sel_nombre = st.selectbox("Línea elegida", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
+        with col_aj2:
+            plazo_sel = st.selectbox("Plazo", [r[0] for r in l_sel["r"]], index=idx_plazo)
+        with col_aj3:
+            ex_c = st.number_input("Gasto Adicional Concesionario (%)", min_value=0.0, step=0.1)
+        
+        qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra)", value=True)
+        
+        l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
+        p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
+        
+        if pr_actual == "Equilibrado (no poner extra)":
+            o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+            gasto_pct = o_test["gasto_pct"] / 100
+            dinero_cliente = ant_ars + usado_ars
+            capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
+            res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
+            res_final["poner_ars"] = dinero_cliente
+            mostrar_capital = capital_final
         else:
-            p_data_vista = next((r for r in l_sel["r"] if r[0] == plazo_actual), l_sel["r"][0])
-            res_final = evaluar_linea(l_sel, p_data_vista, dif, tot_ars, ant_ars, 0.0, True)
+            res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
             mostrar_capital = dif
 
         if res_final:
             mostrar_gasto = res_final["gasto_ars"]
             mostrar_total_banco = mostrar_capital + mostrar_gasto
 
-            st.markdown("---")
-            st.subheader("📄 Estado de Cuenta y Financiación")
+            st.markdown("### 📝 Resumen Final de la Operación")
             
-            col_cuenta, col_banco = st.columns(2)
-            
-            fmt = lambda v: f"u$s {v/tc:,.0f} (${v:,.0f})" if es_usd else f"$ {v:,.0f}"
-
-            with col_cuenta:
-                st.markdown("**CUENTA DEL CLIENTE**")
-                with st.container(border=True):
-                    st.markdown(f"**Valor del Vehículo:** {simbolo} {tot_abonar:,.0f}")
+            # --- BLOQUE ÚNICO DE CIERRE ---
+            with st.container(border=True):
+                # Usamos columnas para que se lea como una factura
+                c_fact1, c_fact2 = st.columns([2, 1])
+                
+                with c_fact1:
+                    st.markdown("**CONCEPTO**")
+                    st.write(f"Valor del Vehículo")
+                    if ant_ars > 0 or usado_ars > 0:
+                        st.write(f"(-) Anticipo / Usado")
+                    st.write(f"Saldo a Financiar")
+                    st.write(f"(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%)")
                     
-                    if ant_usd > 0:
-                        st.markdown(f"**(-) Anticipo en Dólares:** - u$s {ant_usd:,.0f}")
-                    if ant_pesos > 0:
-                        st.markdown(f"**(-) Anticipo en Pesos:** - $ {ant_pesos:,.0f}")
-                    if usado_ars > 0:
-                        st.markdown(f"**(-) Vehículo en Parte de Pago:** - {fmt(usado_ars)}")
+                with c_fact2:
+                    st.markdown("**MONTO**")
+                    st.write(f"{simbolo} {tot_abonar:,.0f}")
+                    if ant_ars > 0 or usado_ars > 0:
+                        st.write(f"- $ {ant_ars + usado_ars:,.0f}")
+                    st.write(f"$ {mostrar_capital:,.0f}")
+                    st.write(f"$ {mostrar_gasto:,.0f}")
                     
-                    st.divider()
-                    st.markdown(f"**Capital a Financiar:** {fmt(mostrar_capital)}")
-                    st.markdown(f"**(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%):** {fmt(mostrar_gasto)}")
-                    st.divider()
-                    
-                    debe_poner_txt = fmt(res_final['poner_ars'])
-                    st.markdown(f"### 💰 Debe poner al inicio: {debe_poner_txt}")
+                st.divider()
+                
+                # Resultado Destacado
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
+                    # Acá mostramos el anticipo + el gasto (si no es equilibrado)
                     if pr_actual == "Equilibrado (no poner extra)":
-                        st.caption("El cliente pone exactamente el dinero declarado. El gasto se descuenta del valor del auto.")
-
-            with col_banco:
-                st.markdown("**DATOS PARA EL BANCO (Boleto/Santander)**")
-                with st.container(border=True):
-                    ref_cap = f"u$s {mostrar_capital/tc:,.0f}" if es_usd else ""
-                    ref_gasto = f"u$s {mostrar_gasto/tc:,.0f}" if es_usd else ""
-                    ref_total = f"u$s {mostrar_total_banco/tc:,.0f}" if es_usd else ""
-
-                    st.metric("Capital a pedir (Monto del auto)", f"$ {mostrar_capital:,.0f}", delta=ref_cap if es_usd else None, delta_color="off")
-                    st.metric("Quebranto (Gasto)", f"$ {mostrar_gasto:,.0f}", delta=ref_gasto if es_usd else None, delta_color="off")
-                    st.metric("TOTAL A SOLICITAR AL BANCO", f"$ {mostrar_total_banco:,.0f}", delta=ref_total if es_usd else None, delta_color="off")
-                    
-                    st.markdown("---")
-                    st.markdown("**Condiciones de la Cuota:**")
-                    if not res_final["uva"]:
-                        st.write(f"**Primera Cuota:** $ {res_final['cuota']:,.0f}")
-                        st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
+                        st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
+                        st.caption("(El gasto ya está incluido en este monto)")
                     else:
-                        st.write(f"**Cuota Inicial (UVA):** $ {res_final['cuota']:,.0f}")
-                        st.caption("Sujeta a ajuste por inflación.")
-                    st.write(f"**Plazo:** {res_final['plazo']} meses")
-                    st.write(f"**TNA:** {res_final['tna']}%")
+                        monto_inicial = res_final['poner_ars']
+                        st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
+                
+                with col_res2:
+                    st.markdown("**CUOTA MENSUAL:**")
+                    if res_final["uva"]:
+                        st.markdown(f"## $ {res_final['cuota']:,.0f} (UVA)")
+                    else:
+                        st.markdown(f"## $ {res_final['cuota']:,.0f}")
+                    st.caption(f"Plazo: {res_final['plazo']} meses")
+
+                st.divider()
+
+                # --- DATOS TÉCNICOS PARA EL BANCO (En un expander para no ensuciar) ---
+                with st.expander("📋 Ver datos exactos para el Boleto y Sistema Santander"):
+                    st.write(f"**Capital a pedir:** $ {mostrar_capital:,.0f}")
+                    st.write(f"**Gasto de otorgamiento:** $ {mostrar_gasto:,.0f}")
+                    st.write(f"**TOTAL A SOLICITAR:** $ {mostrar_total_banco:,.0f}")
+                    if not res_final["uva"]:
+                        st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
 
             # --- BOTÓN PARA GUARDAR EN SUPABASE ---
-            if st.button("💾 Guardar esta cotización en el CRM", type="primary", use_container_width=True):
+            if st.button("💾 Guardar Cotización en CRM", type="primary", use_container_width=True):
                 try:
                     supabase.table("cotizaciones").insert({
                         "modelo": mod_sel,
@@ -358,11 +322,12 @@ if financiar and dif > 0:
                         "anticipo": ant_ars,
                         "usado": usado_ars
                     }).execute()
-                    st.success("¡Cotización guardada en el CRM exitosamente!")
+                    st.success("¡Cotización guardada!")
                 except Exception as e:
-                    st.error(f"Error al guardar en Supabase: {e}")
+                    st.error(f"Error: {e}")
 
 # --- PASO 5: MENSAJE PROFESIONAL PARA EL CLIENTE ---
+# ... (El resto del código del mensaje queda exactamente igual que antes) ...
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
 
