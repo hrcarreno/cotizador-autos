@@ -1,70 +1,55 @@
 import streamlit as st
-import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
+import hashlib
 
 st.set_page_config(page_title="Sistema Concesionaria", layout="wide")
 
-# --- CONFIGURACIÓN DE USUARIOS ---
-# En producción esto va en un archivo config.yaml o en los Secrets, pero para arrancar lo dejamos acá
-config = {
-    'credentials': {
-        'usernames': {
-            'hrcarreno': {
-                'email': 'admin@byd.com',
-                'name': 'Hernán (Admin)',
-                'password': 'admin123', # Encriptaremos esto después
-                'role': 'admin'
-            },
-            'seba': {
-                'email': 'seba@byd.com',
-                'name': 'Seba',
-                'password': 'seba123',
-                'role': 'vendedor'
-            },
-            'luis': {
-                'email': 'luis@byd.com',
-                'name': 'Luis',
-                'password': 'luis123',
-                'role': 'vendedor'
-            }
-        }
-    },
-    'cookie': {
-        'expiry_days': 30,
-        'key': 'clave_secreta_super_segura',
-        'name': 'concesionaria_cookie'
-    }
+# --- FUNCIÓN PARA ENCRIPTAR CONTRASEÑAS ---
+def hash_password(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+# --- BASE DE DATOS DE USUARIOS ---
+USUARIOS = {
+    "hrcarreno": {"pass": hash_password("admin123"), "nombre": "Hernán (Admin)", "rol": "admin"},
+    "seba": {"pass": hash_password("seba123"), "nombre": "Seba", "rol": "vendedor"},
+    "luis": {"pass": hash_password("luis123"), "nombre": "Luis", "rol": "vendedor"},
+    "damian": {"pass": hash_password("damian123"), "nombre": "Damián", "rol": "vendedor"},
 }
 
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
-)
+# --- ESTADO DE LA SESIÓN ---
+if "logueado" not in st.session_state:
+    st.session_state.logueado = False
 
-# --- MUESTRA EL LOGIN ---
-name, authentication_status, username = authenticator.login('main')
+# --- FORMULARIO DE LOGIN ---
+if not st.session_state.logueado:
+    st.title("🔐 Acceso al Sistema")
+    with st.form("login_form"):
+        usuario_input = st.text_input("Usuario").lower()
+        pass_input = st.text_input("Contraseña", type="password")
+        submit = st.form_submit_button("Ingresar", type="primary")
+        
+        if submit:
+            if usuario_input in USUARIOS and USUARIOS[usuario_input]["pass"] == hash_password(pass_input):
+                st.session_state.logueado = True
+                st.session_state.usuario = usuario_input
+                st.session_state.nombre = USUARIOS[usuario_input]["nombre"]
+                st.session_state.rol = USUARIOS[usuario_input]["rol"]
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
+    st.stop()
 
-if authentication_status == False:
-    st.error('Usuario o contraseña incorrectos')
-elif authentication_status == None:
-    st.warning('Por favor, ingresá tus credenciales')
-elif authentication_status:
-    # --- ROUTER SI ESTÁ LOGUEADO ---
-    with st.sidebar:
-        st.write(f"👤 Logueado como: **{name}**")
-        authenticator.logout('Cerrar Sesión', 'sidebar')
-    
-    # Guardamos el rol en la sesión para usarlo en el CRM
-    st.session_state['usuario_actual'] = username
-    st.session_state['rol_actual'] = config['credentials']['usernames'][username]['role']
-    st.session_state['nombre_actual'] = name
+# --- BARRA LATERAL ---
+with st.sidebar:
+    st.markdown(f"👤 **{st.session_state.nombre}**")
+    st.caption(f"Rol: {st.session_state.rol.capitalize()}")
+    if st.button("Cerrar Sesión", use_container_width=True):
+        st.session_state.logueado = False
+        st.rerun()
 
-    pg = st.navigation([
-        st.Page("pages/1_cotizador.py", title="Cotizador", icon="🚗"),
-        st.Page("pages/2_admin.py", title="Admin", icon="⚙️"),
-        st.Page("pages/3_crm.py", title="CRM", icon="📋"),
-    ])
-    pg.run()
+# --- ROUTER PRINCIPAL ---
+pg = st.navigation([
+    st.Page("pages/1_cotizador.py", title="Cotizador", icon="🚗"),
+    st.Page("pages/2_admin.py", title="Admin", icon="⚙️"),
+    st.Page("pages/3_crm.py", title="CRM", icon="📋"),
+])
+pg.run()
