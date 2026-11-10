@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date, timedelta
 from supabase import create_client, Client
 import urllib.parse
+import io
 
 st.set_page_config(page_title="CRM Profesional", layout="wide")
 
@@ -27,6 +28,74 @@ except Exception as e:
 st.title("📋 CRM de Leads")
 
 VENDEDORES = ["Seba", "Luis", "Damián", "Hernán Carreño", "Sin Asignar"]
+
+# --- 1. IMPORTAR Y EXPORTAR (NUEVO) ---
+with st.expander("📥 / 📤 Importar y Exportar Datos"):
+    col_imp, col_exp = st.columns(2)
+    
+    with col_imp:
+        st.markdown("**Importar desde Excel**")
+        archivo = st.file_uploader("Subí el Excel (Nombre, Telefono, Modelo, Origen, Notas)", type=["xlsx"], label_visibility="collapsed")
+        if archivo:
+            if st.button("Confirmar Importación", type="primary", use_container_width=True):
+                df = pd.read_excel(archivo)
+                exito = 0
+                for _, row in df.iterrows():
+                    try:
+                        # Si es vendedor, se asigna a él mismo. Si es admin, a "Sin Asignar" por defecto.
+                        vendedor_asignado = usuario_nombre if rol != 'admin' else "Sin Asignar"
+                        
+                        supabase.table("leads").insert({
+                            "nombre": str(row.get('Nombre', 'S/N')),
+                            "telefono": str(row.get('Telefono', '')).replace('.0',''),
+                            "origen": str(row.get('Origen', 'Excel')),
+                            "modelo_interes": str(row.get('Modelo', 'No especificado')),
+                            "estado": "Nuevo",
+                            "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
+                            "notas": str(row.get('Notas', '')),
+                            "vendedor": vendedor_asignado
+                        }).execute()
+                        exito += 1
+                    except: pass
+                st.success(f"¡Se importaron {exito} leads!")
+                st.rerun()
+
+    with col_exp:
+        st.markdown("**Exportar a Excel**")
+        st.caption("Descarga los leads actuales (según tu rol) para trabajar en Excel.")
+        if st.button("Generar y Descargar Excel", use_container_width=True):
+            try:
+                # Traemos los datos de Supabase
+                query = supabase.table("leads").select("*").execute()
+                datos = query.data
+                
+                if not datos:
+                    st.warning("No hay datos para exportar.")
+                else:
+                    df_export = pd.DataFrame(datos)
+                    
+                    # Si es vendedor, solo exporta los suyos (opcional, pero recomendado)
+                    if rol != 'admin':
+                        df_export = df_export[df_export['vendedor'] == usuario_nombre]
+                    
+                    # Limpiamos las columnas que no queremos en el Excel
+                    cols_export = ['nombre', 'telefono', 'modelo_interes', 'origen', 'estado', 'fecha_proximo_contacto', 'notas', 'vendedor']
+                    df_export = df_export[[c for c in cols_export if c in df_export.columns]]
+                    
+                    # Convertimos a Excel en memoria
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        df_export.to_excel(writer, index=False, sheet_name='Leads')
+                    
+                    st.download_button(
+                        label="⬇️ Descargar Excel de Leads",
+                        data=buffer.getvalue(),
+                        file_name=f"leads_export_{date.today()}.xlsx",
+                        mime="application/vnd.ms-excel",
+                        type="primary"
+                    )
+            except Exception as e:
+                st.error(f"Error al exportar: {e}")
 
 # --- 2. FORMULARIO NUEVO LEAD ---
 with st.expander("➕ Cargar Nuevo Lead"):
