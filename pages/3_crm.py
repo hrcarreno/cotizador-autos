@@ -2,19 +2,10 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
 from supabase import create_client, Client
-import urllib.parse
-import io
 
-st.set_page_config(page_title="CRM Profesional", layout="wide")
+st.set_page_config(page_title="CRM - Cotizador", layout="wide")
 
-# --- SEGURIDAD ---
-if not st.session_state.get("logueado"):
-    st.error("Debés iniciar sesión en la página principal para ver el CRM.")
-    st.stop()
-
-rol = st.session_state.get("rol", "vendedor")
-usuario_nombre = st.session_state.get("nombre", "Vendedor")
-
+# --- CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -22,195 +13,211 @@ def init_connection() -> Client:
 try:
     supabase = init_connection()
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error de conexión con Supabase: {e}")
     st.stop()
 
 st.title("📋 CRM de Leads")
 
-VENDEDORES = ["Seba", "Luis", "Damián", "Hernán Carreño", "Sin Asignar"]
+# --- PESTAÑAS PRINCIPALES ---
+tab1, tab2, tab3 = st.tabs(["📊 Leads Activos", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 
-# --- 1. IMPORTAR Y EXPORTAR (NUEVO) ---
-with st.expander("📥 / 📤 Importar y Exportar Datos"):
-    col_imp, col_exp = st.columns(2)
+# ==========================================
+# PESTAÑA 1: LEADS ACTIVOS (CON BORRADO INDIVIDUAL)
+# ==========================================
+with tab1:
+    # Alertas de atrasados
+    try:
+        response = supabase.table("leads").select("*").execute()
+        leads_raw = response.data
+        if leads_raw:
+            df_alerta = pd.DataFrame(leads_raw)
+            if 'fecha_proximo_contacto' in df_alerta.columns:
+                df_alerta['fecha_proximo_contacto'] = pd.to_datetime(df_alerta['fecha_proximo_contacto']).dt.date
+                hoy = date.today()
+                atrasados = df_alerta[(df_alerta['fecha_proximo_contacto'] < hoy) & (df_alerta['estado'] != 'Cerrado')]
+                
+                if not atrasados.empty:
+                    st.warning(f"🚨 **¡ATENCIÓN!** Tenés {len(atrasados)} lead(s) atrasado(s) en su atención.")
+    except Exception:
+        pass
+
+    # Formulario Nuevo Lead
+    with st.expander("➕ Cargar Nuevo Lead Manualmente"):
+        with st.form("nuevo_lead"):
+            c1, c2 = st.columns(2)
+            nombre = c1.text_input("Nombre del cliente", placeholder="Ej: Juan Pérez")
+            telefono = c1.text_input("Teléfono", placeholder="Ej: 11 2345-6789")
+            origen = c2.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Teléfono", "Presencial", "Excel"])
+            modelo = c2.selectbox("Modelo de interés", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "TI7", "Seal 5", "Otro"])
+            fecha_prox = st.date_input("Fecha próximo contacto", value=date.today() + timedelta(days=1))
+            notas = st.text_area("Notas iniciales")
+            
+            if st.form_submit_button("Guardar Lead", type="primary"):
+                try:
+                    supabase.table("leads").insert({
+                        "nombre": nombre, "telefono": telefono, "origen": origen,
+                        "modelo_interes": modelo, "estado": "Nuevo",
+                        "fecha_proximo_contacto": str(fecha_prox), "notas": notas
+                    }).execute()
+                    st.success("¡Lead guardado exitosamente!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
+
+    # Listado de Leads
+    st.subheader("Listado de Leads")
+    try:
+        response = supabase.table("leads").select("*").order("id", desc=True).execute()
+        leads_raw = response.data
+        if not leads_raw:
+            st.info("No hay leads cargados todavía.")
+        else:
+            df = pd.DataFrame(leads_raw)
+            
+            estados_disponibles = ["Todos"] + list(df['estado'].unique())
+            filtro_estado = st.selectbox("Filtrar por estado", estados_disponibles)
+            
+            if filtro_estado != "Todos":
+                df = df[df['estado'] == filtro_estado]
+                
+            for index, row in df.iterrows():
+                fecha_c = pd.to_datetime(row['fecha_proximo_contacto']).date()
+                atrasado = fecha_c < date.today() and row['estado'] != 'Cerrado'
+                icono = "🔴 " if atrasado else "🟢 "
+                
+                with st.expander(f"{icono}{row['nombre']} - {row['modelo_interes']} ({row['estado']})"):
+                    c1, c2, c3 = st.columns([2, 2, 1])
+                    
+                    with c1:
+                        st.write(f"**Teléfono:** {row['telefono']}")
+                        st.write(f"**Origen:** {row['origen']}")
+                    with c2:
+                        st.write(f"**Próximo Contacto:** {fecha_c.strftime('%d/%m/%Y')}")
+                        st.write(f"**Notas:** {row['notas']}")
+                    with c3:
+                        # BOTÓN DE BORRADO INDIVIDUAL
+                        if st.button("🗑️ Eliminar", key=f"del_{row['id']}", type="secondary"):
+                            try:
+                                supabase.table("leads").delete().eq("id", row['id']).execute()
+                                st.success("Lead eliminado")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+                    
+                    st.divider()
+                    
+                    # Actualizar estado
+                    opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
+                    idx_actual = opciones_estado.index(row['estado']) if row['estado'] in opciones_estado else 0
+                    
+                    nuevo_estado = st.selectbox(f"Actualizar estado", opciones_estado, index=idx_actual, key=f"estado_{row['id']}")
+                    
+                    if st.button("Actualizar Estado", key=f"btn_{row['id']}"):
+                        try:
+                            supabase.table("leads").update({"estado": nuevo_estado}).eq("id", row['id']).execute()
+                            st.success("Estado actualizado")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+    except Exception as e:
+        st.error(f"Error al cargar los leads: {e}")
+
+
+# ==========================================
+# PESTAÑA 2: BORRADO MÚLTIPLE
+# ==========================================
+with tab2:
+    st.subheader("Borrado Múltiple de Leads")
+    st.write("Seleccioná los leads que querés eliminar de la base de datos. Esta acción es irreversible.")
     
-    with col_imp:
-        st.markdown("**Importar desde Excel**")
-        archivo = st.file_uploader("Subí el Excel (Nombre, Telefono, Modelo, Origen, Notas)", type=["xlsx"], label_visibility="collapsed")
-        if archivo:
-            if st.button("Confirmar Importación", type="primary", use_container_width=True):
-                df = pd.read_excel(archivo)
-                exito = 0
-                for _, row in df.iterrows():
+    try:
+        response = supabase.table("leads").select("id, nombre, telefono, modelo_interes, origen").order("id", desc=True).execute()
+        leads_raw = response.data
+        
+        if not leads_raw:
+            st.info("No hay leads para borrar.")
+        else:
+            df_borrar = pd.DataFrame(leads_raw)
+            
+            # Usamos st.data_editor para poder seleccionar filas con checkboxes
+            df_seleccion = st.data_editor(
+                df_borrar,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "id": st.column_config.NumberColumn("ID", disabled=True),
+                    "nombre": st.column_config.TextColumn("Nombre", disabled=True),
+                    "telefono": st.column_config.TextColumn("Teléfono", disabled=True),
+                    "modelo_interes": st.column_config.TextColumn("Modelo", disabled=True),
+                    "origen": st.column_config.TextColumn("Origen", disabled=True),
+                    "Seleccionar": st.column_config.CheckboxColumn("Seleccionar", default=False)
+                },
+                key="tabla_borrado"
+            )
+            
+            # Filtramos las filas donde el checkbox "Seleccionar" está tildado
+            seleccionados = df_seleccion[df_seleccion["Seleccionar"] == True]
+            
+            if not seleccionados.empty:
+                st.warning(f"Tenés {len(seleccionados)} lead(s) seleccionado(s) para eliminar.")
+                
+                if st.button("🗑️ ELIMINAR SELECCIONADOS", type="primary", use_container_width=True):
+                    ids_a_borrar = seleccionados["id"].tolist()
                     try:
-                        # Si es vendedor, se asigna a él mismo. Si es admin, a "Sin Asignar" por defecto.
-                        vendedor_asignado = usuario_nombre if rol != 'admin' else "Sin Asignar"
+                        # Borramos todos los IDs seleccionados de un solo golpe
+                        supabase.table("leads").delete().in_("id", ids_a_borrar).execute()
+                        st.success(f"¡Se eliminaron {len(ids_a_borrar)} leads exitosamente!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al eliminar: {e}")
+            else:
+                st.info("Tildá la casilla 'Seleccionar' en la tabla de arriba para habilitar el borrado.")
+                
+    except Exception as e:
+        st.error(f"Error al cargar la tabla: {e}")
+
+
+# ==========================================
+# PESTAÑA 3: IMPORTAR EXCEL
+# ==========================================
+with tab3:
+    st.subheader("Importar Leads desde Excel")
+    st.write("Subí tu planilla. El sistema buscará columnas llamadas Nombre, Teléfono, Origen, Modelo y Notas.")
+    archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
+    
+    if archivo_excel is not None:
+        try:
+            df_excel = pd.read_excel(archivo_excel)
+            st.write("Vista previa de los datos a importar:")
+            st.dataframe(df_excel.head(5))
+            
+            if st.button("Confirmar e Importar a la Base de Datos", type="primary"):
+                exito = 0
+                errores = 0
+                for index, row in df_excel.iterrows():
+                    try:
+                        nombre = str(row.get('nombre', row.get('Nombre', row.get('Cliente', 'Sin Nombre'))))
+                        telefono = str(row.get('telefono', row.get('Teléfono', row.get('Telefono', row.get('Celular', '')))))
+                        origen = str(row.get('origen', row.get('Origen', 'Importado Excel')))
+                        modelo = str(row.get('modelo_interes', row.get('Modelo', row.get('Modelo de interés', 'Desconocido'))))
+                        notas = str(row.get('notas', row.get('Notas', row.get('Comentarios', ''))))
                         
                         supabase.table("leads").insert({
-                            "nombre": str(row.get('Nombre', 'S/N')),
-                            "telefono": str(row.get('Telefono', '')).replace('.0',''),
-                            "origen": str(row.get('Origen', 'Excel')),
-                            "modelo_interes": str(row.get('Modelo', 'No especificado')),
+                            "nombre": nombre,
+                            "telefono": telefono,
+                            "origen": origen,
+                            "modelo_interes": modelo,
                             "estado": "Nuevo",
                             "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
-                            "notas": str(row.get('Notas', '')),
-                            "vendedor": vendedor_asignado
+                            "notas": notas
                         }).execute()
                         exito += 1
-                    except: pass
-                st.success(f"¡Se importaron {exito} leads!")
+                    except Exception as e:
+                        errores += 1
+                
+                st.success(f"¡Importación terminada! Se cargaron {exito} leads. Errores: {errores}.")
                 st.rerun()
-
-    with col_exp:
-        st.markdown("**Exportar a Excel**")
-        st.caption("Descarga los leads actuales (según tu rol) para trabajar en Excel.")
-        if st.button("Generar y Descargar Excel", use_container_width=True):
-            try:
-                # Traemos los datos de Supabase
-                query = supabase.table("leads").select("*").execute()
-                datos = query.data
                 
-                if not datos:
-                    st.warning("No hay datos para exportar.")
-                else:
-                    df_export = pd.DataFrame(datos)
-                    
-                    # Si es vendedor, solo exporta los suyos (opcional, pero recomendado)
-                    if rol != 'admin':
-                        df_export = df_export[df_export['vendedor'] == usuario_nombre]
-                    
-                    # Limpiamos las columnas que no queremos en el Excel
-                    cols_export = ['nombre', 'telefono', 'modelo_interes', 'origen', 'estado', 'fecha_proximo_contacto', 'notas', 'vendedor']
-                    df_export = df_export[[c for c in cols_export if c in df_export.columns]]
-                    
-                    # Convertimos a Excel en memoria
-                    buffer = io.BytesIO()
-                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                        df_export.to_excel(writer, index=False, sheet_name='Leads')
-                    
-                    st.download_button(
-                        label="⬇️ Descargar Excel de Leads",
-                        data=buffer.getvalue(),
-                        file_name=f"leads_export_{date.today()}.xlsx",
-                        mime="application/vnd.ms-excel",
-                        type="primary"
-                    )
-            except Exception as e:
-                st.error(f"Error al exportar: {e}")
-
-# --- 2. FORMULARIO NUEVO LEAD ---
-with st.expander("➕ Cargar Nuevo Lead"):
-    with st.form("nuevo_lead"):
-        c1, c2 = st.columns(2)
-        nombre = c1.text_input("Nombre")
-        telefono = c1.text_input("Teléfono")
-        modelo = c2.selectbox("Modelo", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "Otro"])
-        origen = c2.selectbox("Origen", ["WhatsApp", "Instagram", "Facebook", "Salón", "Otro"])
-        notas = st.text_area("Notas iniciales")
-        
-        if rol == 'admin':
-            asignado = st.selectbox("Asignar a Vendedor:", VENDEDORES)
-        else:
-            asignado = usuario_nombre
-            
-        if st.form_submit_button("Guardar", type="primary"):
-            supabase.table("leads").insert({
-                "nombre": nombre, "telefono": telefono, "modelo_interes": modelo,
-                "origen": origen, "estado": "Nuevo", "notas": notas,
-                "fecha_proximo_contacto": str(date.today()), "vendedor": asignado
-            }).execute()
-            st.rerun()
-
-# --- 3. LISTADO Y FICHA DEL LEAD ---
-st.subheader("Base de Datos de Clientes")
-
-col_f1, col_f2 = st.columns(2)
-with col_f1:
-    estados = ["Todos", "Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
-    filtro = st.selectbox("Filtrar por estado", estados)
-
-with col_f2:
-    if rol == 'admin':
-        filtro_vendedor = st.selectbox("Filtrar por Vendedor", ["Todos"] + VENDEDORES)
-    else:
-        st.info(f"Viendo leads asignados a: {usuario_nombre}")
-        filtro_vendedor = usuario_nombre
-
-try:
-    query = supabase.table("leads").select("*").order("id", desc=True)
-    if filtro != "Todos": query = query.eq("estado", filtro)
-    if filtro_vendedor != "Todos": query = query.eq("vendedor", filtro_vendedor)
-        
-    leads = query.execute().data
-
-    if not leads:
-        st.info("No hay leads que coincidan con el filtro.")
-    else:
-        for lead in leads:
-            icono = "🟢" if lead['estado'] != "Perdido" else "🔴"
-            vendedor_lead = lead.get('vendedor', 'Sin Asignar')
-            
-            with st.expander(f"{icono} {lead['nombre']} - {lead['modelo_interes']} (Asignado a: {vendedor_lead})"):
-                col_edit, col_hist = st.columns([1.5, 1])
-                
-                with col_edit:
-                    st.markdown("### Datos del Cliente")
-                    tel_limpio = str(lead.get('telefono', '')).replace('.0', '')
-                    if tel_limpio.startswith('54911'): tel_limpio = tel_limpio[5:]
-                    elif tel_limpio.startswith('5411'): tel_limpio = tel_limpio[4:]
-                    
-                    if len(tel_limpio) >= 10:
-                        tel_wa = f"549{tel_limpio[2:]}" if tel_limpio.startswith('11') else f"549{tel_limpio}"
-                        msg_wa = urllib.parse.quote(f"Hola {lead['nombre']}, soy {usuario_nombre} de BYD. Te contacto por tu consulta del {lead['modelo_interes']}.")
-                        url_wa = f"https://wa.me/{tel_wa}?text={msg_wa}"
-                        st.markdown(f"[📱 Enviar WhatsApp a {tel_limpio}]({url_wa})")
-                    
-                    with st.form(key=f"edit_{lead['id']}"):
-                        nom_edit = st.text_input("Nombre", value=lead['nombre'])
-                        tel_edit = st.text_input("Teléfono", value=tel_limpio)
-                        mod_edit = st.text_input("Modelo", value=lead['modelo_interes'])
-                        
-                        idx_est = estados[1:].index(lead['estado']) if lead['estado'] in estados[1:] else 0
-                        est_edit = st.selectbox("Estado", estados[1:], index=idx_est)
-                        
-                        fecha_defecto = pd.to_datetime(lead['fecha_proximo_contacto']).date() if lead['fecha_proximo_contacto'] else date.today()
-                        fecha_edit = st.date_input("Próximo contacto", value=fecha_defecto)
-                        
-                        notas_edit = st.text_area("Notas generales", value=lead['notas'] if lead['notas'] else "")
-                        
-                        if rol == 'admin':
-                            vendedor_edit = st.selectbox("Vendedor Asignado", VENDEDORES, index=VENDEDORES.index(vendedor_lead) if vendedor_lead in VENDEDORES else 0)
-                        else:
-                            vendedor_edit = vendedor_lead
-                            
-                        if st.form_submit_button("💾 Guardar Cambios", use_container_width=True):
-                            supabase.table("leads").update({
-                                "nombre": nom_edit, "telefono": tel_edit, "modelo_interes": mod_edit,
-                                "estado": est_edit, "fecha_proximo_contacto": str(fecha_edit),
-                                "notas": notas_edit, "vendedor": vendedor_edit
-                            }).eq("id", lead['id']).execute()
-                            st.success("¡Actualizado!")
-                            st.rerun()
-
-                with col_hist:
-                    st.markdown("### Historial")
-                    hist = supabase.table("interacciones").select("*").eq("lead_id", lead['id']).order("fecha", desc=True).execute().data
-                    
-                    if not hist:
-                        st.caption("No hay interacciones.")
-                    else:
-                        for h in hist:
-                            fecha_h = pd.to_datetime(h['fecha']).strftime("%d/%m %H:%M")
-                            st.info(f"**{fecha_h} - {h['tipo']}** (por {h.get('vendedor', 'N/A')}):\n{h['detalle']}")
-                    
-                    with st.form(key=f"hist_{lead['id']}"):
-                        tipo_int = st.selectbox("Tipo", ["Llamada", "WhatsApp", "Email", "Nota", "Test Drive"])
-                        detalle_int = st.text_input("Detalle")
-                        if st.form_submit_button("Agregar", use_container_width=True):
-                            supabase.table("interacciones").insert({
-                                "lead_id": lead['id'], "tipo": tipo_int,
-                                "detalle": detalle_int, "vendedor": usuario_nombre
-                            }).execute()
-                            st.rerun()
-
-except Exception as e:
-    st.error(f"Error cargando datos: {e}")
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {e}")
