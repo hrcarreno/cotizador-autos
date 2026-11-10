@@ -1,4 +1,4 @@
 streamlit
 pandas
 openai
-st-supabase-connection
+supabase
