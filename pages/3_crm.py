@@ -140,23 +140,29 @@ with tab2:
         else:
             df_borrar = pd.DataFrame(leads_raw)
             
-            # Usamos st.data_editor para poder seleccionar filas con checkboxes
+            # --- CORRECCIÓN: Creamos la columna 'Seleccionar' ANTES de pasarla al editor ---
+            df_borrar["Seleccionar"] = False
+            
+            # Reordenamos las columnas para que 'Seleccionar' aparezca primero
+            cols = ["Seleccionar"] + [c for c in df_borrar.columns if c != "Seleccionar"]
+            df_borrar = df_borrar[cols]
+
             df_seleccion = st.data_editor(
                 df_borrar,
                 hide_index=True,
                 use_container_width=True,
                 column_config={
+                    "Seleccionar": st.column_config.CheckboxColumn("🗑️"),
                     "id": st.column_config.NumberColumn("ID", disabled=True),
                     "nombre": st.column_config.TextColumn("Nombre", disabled=True),
                     "telefono": st.column_config.TextColumn("Teléfono", disabled=True),
                     "modelo_interes": st.column_config.TextColumn("Modelo", disabled=True),
                     "origen": st.column_config.TextColumn("Origen", disabled=True),
-                    "Seleccionar": st.column_config.CheckboxColumn("Seleccionar", default=False)
                 },
                 key="tabla_borrado"
             )
             
-            # Filtramos las filas donde el checkbox "Seleccionar" está tildado
+            # Filtramos las filas donde el checkbox está tildado
             seleccionados = df_seleccion[df_seleccion["Seleccionar"] == True]
             
             if not seleccionados.empty:
@@ -172,7 +178,7 @@ with tab2:
                     except Exception as e:
                         st.error(f"Error al eliminar: {e}")
             else:
-                st.info("Tildá la casilla 'Seleccionar' en la tabla de arriba para habilitar el borrado.")
+                st.info("Tildá la casilla en la primera columna de la tabla para habilitar el borrado.")
                 
     except Exception as e:
         st.error(f"Error al cargar la tabla: {e}")
