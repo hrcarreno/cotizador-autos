@@ -2,4 +2,3 @@ streamlit
 pandas
 openai
 st-supabase-connection
-streamlit-notify
