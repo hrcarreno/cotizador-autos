@@ -35,6 +35,7 @@ with tab1:
         st.info("No hay leads cargados todavía.")
     else:
         df = pd.DataFrame(leads_raw)
+        # Convertimos las fechas y manejamos posibles valores nulos
         df['fecha_proximo_contacto'] = pd.to_datetime(df['fecha_proximo_contacto']).dt.date
         hoy = date.today()
 
@@ -76,18 +77,26 @@ with tab1:
                         }).execute()
                         st.rerun()
 
-        # Filtro de búsqueda
+        # --- FILTRO DE BÚSQUEDA SEGURO ---
         if busqueda:
-            df = df[df['nombre'].str.contains(busqueda, case=False, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
+            # Convertimos todo a minúsculas para que no importen las tildes ni mayúsculas
+            busqueda = busqueda.lower()
+            mask_nombre = df['nombre'].astype(str).str.lower().str.contains(busqueda, na=False)
+            mask_tel = df['telefono'].astype(str).str.contains(busqueda, na=False)
+            df = df[mask_nombre | mask_tel]
+            
+            if df.empty:
+                st.warning("No se encontraron clientes con ese criterio.")
+                st.stop() # Detenemos la ejecución para que no intente dibujar la tabla vacía
 
         # --- TABLA DE DATOS INTERACTIVA ---
         st.markdown("### 📋 Lista de Clientes")
         
-        # Preparar el DataFrame para mostrar
         df_mostrar = df[['id', 'nombre', 'telefono', 'modelo_interes', 'estado', 'fecha_proximo_contacto', 'origen', 'notas']].copy()
         
-        # Creamos una columna de alerta visual
-        df_mostrar.insert(0, "Alerta", df_mostrar.apply(lambda r: "🔴" if r['fecha_proximo_contacto'] < hoy and r['estado'] not in ['Cerrado', 'Perdido'] else "🟢", axis=1))
+        # Insertamos la columna de alerta en la posición 0 (al principio)
+        alertas = df_mostrar.apply(lambda r: "🔴" if (pd.notna(r['fecha_proximo_contacto']) and r['fecha_proximo_contacto'] < hoy and r['estado'] not in ['Cerrado', 'Perdido']) else "🟢", axis=1)
+        df_mostrar.insert(0, "Alerta", alertas)
 
         evento = st.dataframe(
             df_mostrar,
@@ -108,7 +117,7 @@ with tab1:
             }
         )
 
-        # --- PANEL DE DETALLE (SE ABRE AL TOCAR UNA FILA) ---
+        # --- PANEL DE DETALLE ---
         if evento.selection.rows:
             idx = evento.selection.rows[0]
             lead = df_mostrar.iloc[idx]
@@ -123,21 +132,20 @@ with tab1:
                     st.write(f"**Teléfono:** {lead['telefono']}")
                     st.write(f"**Modelo:** {lead['modelo_interes']}")
                     st.write(f"**Origen:** {lead['origen']}")
-                    st.write(f"**Próximo Contacto:** {lead['fecha_proximo_contacto'].strftime('%d/%m/%Y')}")
+                    if pd.notna(lead['fecha_proximo_contacto']):
+                        st.write(f"**Próximo Contacto:** {lead['fecha_proximo_contacto'].strftime('%d/%m/%Y')}")
                     st.info(f"**Notas:** {lead['notas']}")
                     
                 with col_det2:
                     st.write("**Acciones Rápidas**")
                     
-                    # Botón WhatsApp
                     tel_limpio = "".join(filter(str.isdigit, str(lead['telefono'])))
                     if tel_limpio:
                         url_wp = f"https://wa.me/{tel_limpio}?text=Hola%20{lead['nombre']}!"
                         st.link_button("💬 Enviar WhatsApp", url_wp, use_container_width=True)
                     
-                    st.write("") # Espacio
+                    st.write("") 
                     
-                    # Mover etapa
                     estados = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
                     nuevo_estado = st.selectbox("Mover a la etapa:", estados, index=estados.index(lead['estado']), key="det_estado")
                     
