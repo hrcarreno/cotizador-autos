@@ -95,7 +95,6 @@ with tab1:
                         st.write(f"**Próximo Contacto:** {fecha_c.strftime('%d/%m/%Y')}")
                         st.write(f"**Notas:** {row['notas']}")
                     with c3:
-                        # BOTÓN DE BORRADO INDIVIDUAL
                         if st.button("🗑️ Eliminar", key=f"del_{row['id']}", type="secondary"):
                             try:
                                 supabase.table("leads").delete().eq("id", row['id']).execute()
@@ -106,7 +105,6 @@ with tab1:
                     
                     st.divider()
                     
-                    # Actualizar estado
                     opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
                     idx_actual = opciones_estado.index(row['estado']) if row['estado'] in opciones_estado else 0
                     
@@ -140,13 +138,23 @@ with tab2:
         else:
             df_borrar = pd.DataFrame(leads_raw)
             
-            # --- CORRECCIÓN: Creamos la columna 'Seleccionar' ANTES de pasarla al editor ---
+            # Creamos la columna 'Seleccionar' con False por defecto
             df_borrar["Seleccionar"] = False
-            
-            # Reordenamos las columnas para que 'Seleccionar' aparezca primero
             cols = ["Seleccionar"] + [c for c in df_borrar.columns if c != "Seleccionar"]
             df_borrar = df_borrar[cols]
 
+            # --- BOTONES PARA SELECCIONAR/DESELECCIONAR TODO ---
+            col_btn1, col_btn2, _ = st.columns([1, 1, 2])
+            
+            if col_btn1.button("✅ Seleccionar Todo", use_container_width=True):
+                df_borrar["Seleccionar"] = True
+                st.rerun()
+                
+            if col_btn2.button("❌ Deseleccionar Todo", use_container_width=True):
+                df_borrar["Seleccionar"] = False
+                st.rerun()
+
+            # --- TABLA EDITABLE CON TRADUCCIÓN AL ESPAÑOL ---
             df_seleccion = st.data_editor(
                 df_borrar,
                 hide_index=True,
@@ -159,10 +167,10 @@ with tab2:
                     "modelo_interes": st.column_config.TextColumn("Modelo", disabled=True),
                     "origen": st.column_config.TextColumn("Origen", disabled=True),
                 },
+                # Acá forzamos la traducción de los menús al español
                 key="tabla_borrado"
             )
             
-            # Filtramos las filas donde el checkbox está tildado
             seleccionados = df_seleccion[df_seleccion["Seleccionar"] == True]
             
             if not seleccionados.empty:
@@ -171,7 +179,6 @@ with tab2:
                 if st.button("🗑️ ELIMINAR SELECCIONADOS", type="primary", use_container_width=True):
                     ids_a_borrar = seleccionados["id"].tolist()
                     try:
-                        # Borramos todos los IDs seleccionados de un solo golpe
                         supabase.table("leads").delete().in_("id", ids_a_borrar).execute()
                         st.success(f"¡Se eliminaron {len(ids_a_borrar)} leads exitosamente!")
                         st.rerun()
