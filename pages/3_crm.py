@@ -2,15 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
 from supabase import create_client, Client
+import re
 
 st.set_page_config(page_title="CRM - Cotizador", layout="wide")
 
 # --- CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 try:
     supabase = init_connection()
@@ -20,7 +19,58 @@ except Exception as e:
 
 st.title("📋 CRM de Leads")
 
-# --- ALERTAS DE LEADS ATRASADOS ---
+# --- 1. IMPORTACIÓN DESDE EXCEL ---
+with st.expander("📥 Importar Leads desde Excel", expanded=False):
+    st.write("Subí tu planilla (debe tener las columnas: Nombre, Telefono, Modelo, Origen, Notas).")
+    archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
+    
+    if archivo_excel is not None:
+        try:
+            df_excel = pd.read_excel(archivo_excel)
+            st.write("Vista previa de los primeros 5 registros:")
+            st.dataframe(df_excel.head(5))
+            
+            if st.button("Confirmar e Importar a la Base de Datos", type="primary"):
+                exito = 0
+                errores = 0
+                for index, row in df_excel.iterrows():
+                    try:
+                        # Función para limpiar teléfonos
+                        def limpiar_tel(tel):
+                            if pd.isna(tel): return ""
+                            t = str(tel).split('.')[0]
+                            t = re.sub(r'[^\d+]', '', t)
+                            return t
+                        
+                        # Mapeo flexible
+                        nombre = str(row.get('Nombre', row.get('Cliente', 'Sin Nombre')))
+                        telefono = limpiar_tel(row.get('Telefono', row.get('Teléfono', row.get('Celular', ''))))
+                        origen = str(row.get('Origen', 'Importado Excel'))
+                        modelo = str(row.get('Modelo', row.get('Modelo de interés', 'Desconocido')))
+                        notas = str(row.get('Notas', row.get('Comentarios', '')))
+                        vendedor = str(row.get('Vendedor', 'N/A'))
+                        
+                        # Insertar en Supabase
+                        supabase.table("leads").insert({
+                            "nombre": nombre,
+                            "telefono": telefono,
+                            "origen": origen,
+                            "modelo_interes": modelo,
+                            "estado": "Nuevo",
+                            "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
+                            "notas": f"[Vendedor: {vendedor}] {notas}"
+                        }).execute()
+                        exito += 1
+                    except Exception as e:
+                        errores += 1
+                
+                st.success(f"¡Importación terminada! Se cargaron {exito} leads. Errores: {errores}.")
+                st.rerun()
+                
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {e}")
+
+# --- 2. ALERTAS DE LEADS ATRASADOS ---
 try:
     response = supabase.table("leads").select("*").execute()
     leads_raw = response.data
@@ -36,13 +86,13 @@ try:
 except Exception:
     pass
 
-# --- FORMULARIO PARA NUEVO LEAD ---
-with st.expander("➕ Cargar Nuevo Lead"):
+# --- 3. FORMULARIO PARA NUEVO LEAD ---
+with st.expander("➕ Cargar Nuevo Lead Manualmente"):
     with st.form("nuevo_lead"):
         c1, c2 = st.columns(2)
         nombre = c1.text_input("Nombre del cliente", placeholder="Ej: Juan Pérez")
         telefono = c1.text_input("Teléfono", placeholder="Ej: 11 2345-6789")
-        origen = c2.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Teléfono", "Presencial"])
+        origen = c2.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Teléfono", "Presencial", "Excel"])
         modelo = c2.selectbox("Modelo de interés", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "TI7", "Seal 5", "Otro"])
         fecha_prox = st.date_input("Fecha próximo contacto", value=date.today() + timedelta(days=1))
         notas = st.text_area("Notas iniciales")
@@ -63,7 +113,7 @@ with st.expander("➕ Cargar Nuevo Lead"):
             except Exception as e:
                 st.error(f"Error al guardar: {e}")
 
-# --- LISTADO DE LEADS ---
+# --- 4. LISTADO DE LEADS ---
 st.subheader("Leads Registrados")
 try:
     response = supabase.table("leads").select("*").order("id", desc=True).execute()
@@ -73,7 +123,6 @@ try:
     else:
         df = pd.DataFrame(leads_raw)
         
-        # Filtro por estado
         estados_disponibles = ["Todos"] + list(df['estado'].unique())
         filtro_estado = st.selectbox("Filtrar por estado", estados_disponibles)
         
@@ -92,7 +141,6 @@ try:
                 c2.write(f"**Próximo Contacto:** {fecha_c.strftime('%d/%m/%Y')}")
                 c3.write(f"**Notas:** {row['notas']}")
                 
-                # Cambiar estado
                 opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
                 idx_actual = opciones_estado.index(row['estado']) if row['estado'] in opciones_estado else 0
                 
