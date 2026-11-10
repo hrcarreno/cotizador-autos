@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import date, timedelta
 from supabase import create_client, Client
 
-st.set_page_config(page_title="CRM - Cotizador", layout="wide")
+st.set_page_config(page_title="CRM Inteligente", layout="wide")
 
 # --- CONEXIÓN SUPABASE ---
 @st.cache_resource
@@ -16,146 +16,133 @@ except Exception as e:
     st.error(f"Error de conexión con Supabase: {e}")
     st.stop()
 
-st.title("📋 CRM de Leads")
+st.title("📋 CRM Inteligente")
 
-tab1, tab2, tab3 = st.tabs(["📊 Leads Activos", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
+tab1, tab2, tab3 = st.tabs(["📊 Tablero de Ventas", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 
 # ==========================================
-# PESTAÑA 1: LEADS ACTIVOS (REDISEÑO PROFESIONAL)
+# PESTAÑA 1: TABLERO KANBAN Y MÉTRICAS
 # ==========================================
 with tab1:
-    # --- MÉTRICAS SUPERIORES ---
+    # Traemos todos los leads
     try:
-        res_all = supabase.table("leads").select("*").execute()
-        leads_all = res_all.data
-        if leads_all:
-            df_all = pd.DataFrame(leads_all)
-            df_all['fecha_proximo_contacto'] = pd.to_datetime(df_all['fecha_proximo_contacto']).dt.date
-            hoy = date.today()
-            
-            total_leads = len(df_all)
-            atrasados = len(df_all[(df_all['fecha_proximo_contacto'] < hoy) & (df_all['estado'] != 'Cerrado')])
-            
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total de Leads", total_leads)
-            col2.metric("Leads Atrasados", atrasados, delta="-Atención", delta_color="inverse")
-            col3.metric("Leads Cerrados", len(df_all[df_all['estado'] == 'Cerrado']))
-            
-            if atrasados > 0:
-                st.warning(f"🚨 Tenés {atrasados} leads atrasados. Filtrá por 'Atrasados' para verlos.")
-    except Exception:
-        pass
-
-    st.markdown("---")
-    
-    # --- FORMULARIO DE CARGA (OCULTO EN UN BOTÓN) ---
-    with st.popover("➕ Cargar Nuevo Lead"):
-        with st.form("nuevo_lead"):
-            c1, c2 = st.columns(2)
-            nombre = c1.text_input("Nombre")
-            telefono = c1.text_input("Teléfono")
-            origen = c2.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Teléfono", "Presencial", "Excel"])
-            modelo = c2.selectbox("Modelo", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "TI7", "Seal 5", "Otro"])
-            fecha_prox = st.date_input("Próximo Contacto", value=date.today() + timedelta(days=1))
-            notas = st.text_area("Notas")
-            
-            if st.form_submit_button("Guardar", type="primary"):
-                try:
-                    supabase.table("leads").insert({
-                        "nombre": nombre, "telefono": telefono, "origen": origen,
-                        "modelo_interes": modelo, "estado": "Nuevo",
-                        "fecha_proximo_contacto": str(fecha_prox), "notas": notas
-                    }).execute()
-                    st.success("¡Lead guardado!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-    # --- TABLA PRINCIPAL DE LEADS ---
-    try:
-        response = supabase.table("leads").select("*").order("id", desc=True).execute()
+        response = supabase.table("leads").select("*").execute()
         leads_raw = response.data
-        
-        if not leads_raw:
-            st.info("No hay leads cargados todavía.")
-        else:
-            df = pd.DataFrame(leads_raw)
-            df['fecha_proximo_contacto'] = pd.to_datetime(df['fecha_proximo_contacto']).dt.date
-            
-            # Filtros
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                filtro_estado = st.multiselect("Filtrar por Estado", ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"], default=[])
-            with col_f2:
-                filtro_atraso = st.checkbox("Mostrar solo Atrasados")
-            
-            df_filtrado = df.copy()
-            if filtro_estado:
-                df_filtrado = df_filtrado[df_filtrado['estado'].isin(filtro_estado)]
-            if filtro_atraso:
-                hoy = date.today()
-                df_filtrado = df_filtrado[(df_filtrado['fecha_proximo_contacto'] < hoy) & (df_filtrado['estado'] != 'Cerrado')]
-                
-            # Mostramos la tabla
-            df_mostrar = df_filtrado[['id', 'nombre', 'telefono', 'modelo_interes', 'origen', 'estado', 'fecha_proximo_contacto', 'notas']]
-            
-            evento_tabla = st.dataframe(
-                df_mostrar,
-                use_container_width=True,
-                hide_index=True,
-                on_select="rerun",
-                selection_mode="single-row",
-                column_config={
-                    "id": st.column_config.NumberColumn("ID", width="small"),
-                    "nombre": st.column_config.TextColumn("Cliente", width="medium"),
-                    "telefono": st.column_config.TextColumn("Teléfono", width="medium"),
-                    "modelo_interes": st.column_config.TextColumn("Modelo", width="medium"),
-                    "origen": st.column_config.TextColumn("Origen"),
-                    "estado": st.column_config.TextColumn("Estado"),
-                    "fecha_proximo_contacto": st.column_config.DateColumn("Próximo Contacto", format="DD/MM/YYYY"),
-                    "notas": st.column_config.TextColumn("Notas", width="large"),
-                }
-            )
-            
-            # --- PANEL DE DETALLE (SE ABRE AL TOCAR UNA FILA) ---
-            if evento_tabla.selection.rows:
-                idx_seleccionado = evento_tabla.selection.rows[0]
-                lead_sel = df_mostrar.iloc[idx_seleccionado]
-                
-                st.markdown("---")
-                st.subheader(f"Detalle del Lead: {lead_sel['nombre']}")
-                
-                with st.container(border=True):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.write(f"**Teléfono:** {lead_sel['telefono']}")
-                        st.write(f"**Modelo:** {lead_sel['modelo_interes']}")
-                        st.write(f"**Origen:** {lead_sel['origen']}")
-                        st.write(f"**Próximo Contacto:** {lead_sel['fecha_proximo_contacto'].strftime('%d/%m/%Y')}")
-                    with c2:
-                        st.write(f"**Notas:** {lead_sel['notas']}")
-                        
-                        # Actualizar estado
-                        opciones_estado = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
-                        idx_actual = opciones_estado.index(lead_sel['estado']) if lead_sel['estado'] in opciones_estado else 0
-                        nuevo_estado = st.selectbox("Cambiar estado a:", opciones_estado, index=idx_actual, key=f"det_estado_{lead_sel['id']}")
-                        
-                        if st.button("Actualizar Estado", type="primary"):
-                            supabase.table("leads").update({"estado": nuevo_estado}).eq("id", int(lead_sel['id'])).execute()
-                            st.success("Estado actualizado")
-                            st.rerun()
-                            
-                        if st.button("🗑️ Eliminar Lead", type="secondary"):
-                            supabase.table("leads").delete().eq("id", int(lead_sel['id'])).execute()
-                            st.success("Lead eliminado")
-                            st.rerun()
-
     except Exception as e:
-        st.error(f"Error al cargar los leads: {e}")
+        st.error(f"Error al cargar datos: {e}")
+        leads_raw = []
+
+    if not leads_raw:
+        st.info("No hay leads cargados todavía. Usá la pestaña de importar o agregá uno nuevo.")
+    else:
+        df = pd.DataFrame(leads_raw)
+        df['fecha_proximo_contacto'] = pd.to_datetime(df['fecha_proximo_contacto']).dt.date
+        hoy = date.today()
+
+        # --- 1. DASHBOARD DE MÉTRICAS (ADMIN) ---
+        st.markdown("### 🎯 Resumen de Rendimiento")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_leads = len(df)
+        leads_cerrados = len(df[df['estado'] == 'Cerrado'])
+        tasa_cierre = (leads_cerrados / total_leads * 100) if total_leads > 0 else 0
+        
+        atrasados = df[(df['fecha_proximo_contacto'] < hoy) & (df['estado'] != 'Cerrado')]
+        
+        col1.metric("Leads Totales", total_leads)
+        col2.metric("Tasa de Cierre", f"{tasa_cierre:.1f}%")
+        col3.metric("Leads Atrasados", len(atrasados), delta="Requieren atención", delta_color="inverse")
+        col4.metric("Ventas Cerradas", leads_cerrados)
+
+        st.divider()
+
+        # --- 2. CONTROLES Y CARGA RÁPIDA ---
+        col_ctrl1, col_ctrl2 = st.columns([3, 1])
+        with col_ctrl1:
+            busqueda = st.text_input("🔍 Buscar cliente por nombre o teléfono", "")
+        with col_ctrl2:
+            st.write("") # Espacio para alinear
+            st.write("")
+            with st.popover("➕ Nuevo Lead", use_container_width=True):
+                with st.form("nuevo_lead"):
+                    n_nombre = st.text_input("Nombre")
+                    n_tel = st.text_input("Teléfono")
+                    n_mod = st.selectbox("Modelo", ["Dolphin Mini", "Song Pro", "Seal U", "SHARK", "TI7", "Seal 5", "Otro"])
+                    n_origen = st.selectbox("Origen", ["WhatsApp", "Web", "Instagram", "Facebook", "Presencial"])
+                    n_notas = st.text_area("Notas")
+                    if st.form_submit_button("Guardar Lead"):
+                        supabase.table("leads").insert({
+                            "nombre": n_nombre, "telefono": n_tel, "origen": n_origen,
+                            "modelo_interes": n_mod, "estado": "Nuevo",
+                            "fecha_proximo_contacto": str(hoy + timedelta(days=1)), "notas": n_notas
+                        }).execute()
+                        st.rerun()
+
+        # Filtro de búsqueda
+        if busqueda:
+            df = df[df['nombre'].str.contains(busqueda, case=False, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
+
+        # --- 3. TABLERO KANBAN VISUAL ---
+        st.markdown("### 🗂️ Flujo de Ventas")
+        st.caption("Gestioná el avance de cada cliente a lo largo del embudo de ventas.")
+        
+        estados_columnas = ["Nuevo", "Contactado", "Cotizado", "Negociación", "Cerrado", "Perdido"]
+        cols = st.columns(len(estados_columnas))
+
+        # Renderizamos cada columna
+        for idx, estado in enumerate(estados_columnas):
+            with cols[idx]:
+                # Título de la columna con contador
+                df_col = df[df['estado'] == estado]
+                st.markdown(f"**{estado} ({len(df_col)})**")
+                
+                # Contenedor para las tarjetas de esta columna
+                with st.container(height=600, border=False):
+                    for _, row in df_col.iterrows():
+                        # Lógica de alerta de atraso
+                        fecha_c = row['fecha_proximo_contacto']
+                        atrasado = fecha_c < hoy and estado != 'Cerrado' and estado != 'Perdido'
+                        borde = "🔴 " if atrasado else ""
+                        
+                        # Tarjeta del Lead
+                        with st.container(border=True):
+                            st.markdown(f"{borde}**{row['nombre']}**")
+                            st.caption(f"📱 {row['telefono']}")
+                            st.caption(f"🚗 {row['modelo_interes']}")
+                            if pd.notna(row['notas']) and row['notas'] != "":
+                                st.caption(f"📝 {str(row['notas'])[:40]}...")
+                            
+                            # Botones de acción rápida
+                            c_btn1, c_btn2 = st.columns(2)
+                            with c_btn1:
+                                # Botón de WhatsApp Web
+                                tel_limpio = "".join(filter(str.isdigit, str(row['telefono'])))
+                                if tel_limpio:
+                                    url_wp = f"https://wa.me/{tel_limpio}?text=Hola%20{row['nombre']}!"
+                                    st.link_button("💬 WP", url_wp, use_container_width=True)
+                            with c_btn2:
+                                # Botón de avanzar etapa
+                                if estado != "Cerrado" and estado != "Perdido":
+                                    sig_etapa = estados_columnas[estados_columnas.index(estado) + 1]
+                                    if st.button("➡️ Avanzar", key=f"avz_{row['id']}", use_container_width=True):
+                                        supabase.table("leads").update({"estado": sig_etapa}).eq("id", row['id']).execute()
+                                        st.rerun()
+                            
+                            # Expander para ver detalle o eliminar
+                            with st.expander("⚙️ Opciones"):
+                                st.write(f"**Origen:** {row['origen']}")
+                                st.write(f"**Próx. Contacto:** {fecha_c.strftime('%d/%m/%Y')}")
+                                nuevo_est = st.selectbox("Mover a:", estados_columnas, index=estados_columnas.index(estado), key=f"sel_{row['id']}")
+                                if st.button("Actualizar", key=f"upd_{row['id']}"):
+                                    supabase.table("leads").update({"estado": nuevo_est}).eq("id", row['id']).execute()
+                                    st.rerun()
+                                if st.button("🗑️ Eliminar", key=f"del_{row['id']}", type="primary"):
+                                    supabase.table("leads").delete().eq("id", row['id']).execute()
+                                    st.rerun()
 
 
 # ==========================================
-# PESTAÑA 2: BORRADO MÚLTIPLE
+# PESTAÑA 2: BORRADO MÚLTIPLE (SE MANTIENE)
 # ==========================================
 with tab2:
     st.subheader("Borrado Múltiple de Leads")
@@ -202,15 +189,13 @@ with tab2:
                 if st.button("🗑️ ELIMINAR SELECCIONADOS", type="primary", use_container_width=True):
                     ids_a_borrar = seleccionados["id"].tolist()
                     supabase.table("leads").delete().in_("id", ids_a_borrar).execute()
-                    st.success(f"¡Se eliminaron {len(ids_a_borrar)} leads!")
                     st.session_state.select_all_trigger = False
                     st.rerun()
     except Exception as e:
         st.error(f"Error: {e}")
 
-
 # ==========================================
-# PESTAÑA 3: IMPORTAR EXCEL
+# PESTAÑA 3: IMPORTAR EXCEL (SE MANTIENE)
 # ==========================================
 with tab3:
     st.subheader("Importar Leads desde Excel")
