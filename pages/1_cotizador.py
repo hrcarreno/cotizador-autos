@@ -2,9 +2,17 @@ import streamlit as st
 import json
 import re
 from openai import OpenAI
+from st_supabase_connection import SupabaseConnection
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
+
+# --- CONEXIÓN SUPABASE ---
+try:
+    conn = st.connection("supabase", type=SupabaseConnection)
+except Exception:
+    st.error("Error de conexión con Supabase. Revisá los Secrets.")
+    st.stop()
 
 # --- CONFIGURACIÓN IA ---
 try:
@@ -66,7 +74,6 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
-# --- VARIABLES GLOBALES PARA EVITAR ERRORES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -95,22 +102,16 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
-    # --- BONIFICACIÓN: EL CÓDIGO SIEMPRE VISIBLE ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
             aplicar_bonif = st.checkbox("Aplicar bonificación")
             if aplicar_bonif:
-                # Input para modificar (arranca en 0)
                 bon_mod = input_moneda(f"Modificar monto bonif. ({simbolo})", 0, key="bon_input")
-                
-                # Si el vendedor no escribió nada, usamos el de la tabla. Si escribió, usamos el suyo.
                 if bon_mod == 0:
                     bon = dm["bonif"]
                 else:
                     bon = bon_mod
-                
-                # Mostramos SIEMPRE el código disfrazado
                 st.code(generar_codigo_disfrazado(bon), language=None)
         else:
             st.caption("Este modelo no tiene bonificación de lista.")
@@ -331,6 +332,25 @@ if financiar and dif > 0:
                         st.caption("Sujeta a ajuste por inflación.")
                     st.write(f"**Plazo:** {res_final['plazo']} meses")
                     st.write(f"**TNA:** {res_final['tna']}%")
+
+            # --- BOTÓN PARA GUARDAR EN SUPABASE ---
+            if st.button("💾 Guardar esta cotización en el CRM", type="primary", use_container_width=True):
+                try:
+                    conn.table("cotizaciones").insert({
+                        "modelo": mod_sel,
+                        "precio_total": tot_abonar,
+                        "moneda": dm["moneda"],
+                        "capital_financiado": mostrar_capital,
+                        "gasto_otorgamiento": mostrar_gasto,
+                        "cuota_inicial": res_final["cuota"],
+                        "plazo_meses": res_final["plazo"],
+                        "linea": res_final["linea"]["n"],
+                        "anticipo": ant_ars,
+                        "usado": usado_ars
+                    }).execute()
+                    st.success("¡Cotización guardada en Supabase!")
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
 
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
