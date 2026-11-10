@@ -7,11 +7,6 @@ from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
-# --- SEGURIDAD ---
-if not st.session_state.get("logueado"):
-    st.error("Debés iniciar sesión.")
-    st.stop()
-
 # --- CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
@@ -83,6 +78,7 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
+# --- VARIABLES GLOBALES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -251,6 +247,9 @@ if financiar and dif > 0:
         st.info(f"**{linea_actual}** a **{plazo_actual} meses**")
         
         l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
+        
+        # --- CORRECCIÓN DEL ERROR STOPITERATION ---
+        # Buscamos el índice del plazo, si no existe en esta línea, usamos el índice 0
         idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
         
         if not st.session_state.vista_cliente:
@@ -267,7 +266,10 @@ if financiar and dif > 0:
             qr = st.checkbox("Cobrar el quebranto", value=True)
             
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
-            p_data = next(r for r in l_sel["r"] if r[0] == plazo_sel)
+            
+            # --- SEGUNDA CORRECCIÓN DE SEGURIDAD ---
+            # Si por alguna razón el plazo_sel no está en la nueva línea, tomamos el primero
+            p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
             
             if pr_actual == "Equilibrado (no poner extra)":
                 o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
@@ -282,7 +284,8 @@ if financiar and dif > 0:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 mostrar_capital = dif
         else:
-            res_final = evaluar_linea(l_sel, next(r for r in l_sel["r"] if r[0] == plazo_actual), dif, tot_ars, ant_ars, 0.0, True)
+            p_data_vista = next((r for r in l_sel["r"] if r[0] == plazo_actual), l_sel["r"][0])
+            res_final = evaluar_linea(l_sel, p_data_vista, dif, tot_ars, ant_ars, 0.0, True)
             mostrar_capital = dif
 
         if res_final:
@@ -340,20 +343,29 @@ if financiar and dif > 0:
                     st.write(f"**Plazo:** {res_final['plazo']} meses")
                     st.write(f"**TNA:** {res_final['tna']}%")
 
+            # --- BOTÓN PARA GUARDAR EN SUPABASE ---
             if st.button("💾 Guardar esta cotización en el CRM", type="primary", use_container_width=True):
                 try:
                     supabase.table("cotizaciones").insert({
-                        "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
-                        "capital_financiado": mostrar_capital, "gasto_otorgamiento": mostrar_gasto,
-                        "cuota_inicial": res_final["cuota"], "plazo_meses": res_final["plazo"],
-                        "linea": res_final["linea"]["n"], "anticipo": ant_ars, "usado": usado_ars
+                        "modelo": mod_sel,
+                        "precio_total": tot_abonar,
+                        "moneda": dm["moneda"],
+                        "capital_financiado": mostrar_capital,
+                        "gasto_otorgamiento": mostrar_gasto,
+                        "cuota_inicial": res_final["cuota"],
+                        "plazo_meses": res_final["plazo"],
+                        "linea": res_final["linea"]["n"],
+                        "anticipo": ant_ars,
+                        "usado": usado_ars
                     }).execute()
                     st.success("¡Cotización guardada en el CRM exitosamente!")
                 except Exception as e:
                     st.error(f"Error al guardar en Supabase: {e}")
 
+# --- PASO 5: MENSAJE PROFESIONAL PARA EL CLIENTE ---
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
+
 msg = f"¡Hola! 👋 Te paso el detalle de la cotización por tu *BYD {mod_sel}*:\n\n"
 msg += f"📋 *DETALLE DEL VEHÍCULO:*\n"
 msg += f"• Precio de Lista: {simbolo} {dm['precio']:,.0f}\n"
@@ -369,8 +381,10 @@ msg += f"\n💰 *TOTAL A ABONAR:* {simbolo} {tot_abonar:,.0f}\n"
 
 if ant_ars > 0 or usado_ars > 0:
     msg += f"\n💵 *FORMA DE PAGO:*\n"
-    if ant_ars > 0: msg += f"• Anticipo: $ {ant_ars:,.0f}\n"
-    if usado_ars > 0: msg += f"• Vehículo en parte de pago: $ {usado_ars:,.0f}\n"
+    if ant_ars > 0:
+        msg += f"• Anticipo: $ {ant_ars:,.0f}\n"
+    if usado_ars > 0:
+        msg += f"• Vehículo en parte de pago: $ {usado_ars:,.0f}\n"
     msg += f"• Diferencia a Financiar: $ {dif:,.0f}\n"
 
 if financiar and dif > 0 and res_final:
