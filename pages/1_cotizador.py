@@ -2,16 +2,20 @@ import streamlit as st
 import json
 import re
 from openai import OpenAI
-from st_supabase_connection import SupabaseConnection
+from supabase import create_client, Client
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
 # --- CONEXIÓN SUPABASE ---
+@st.cache_resource
+def init_connection() -> Client:
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
 try:
-    conn = st.connection("supabase", type=SupabaseConnection)
-except Exception:
-    st.error("Error de conexión con Supabase. Revisá los Secrets.")
+    supabase = init_connection()
+except Exception as e:
+    st.error(f"Error de conexión con Supabase: {e}")
     st.stop()
 
 # --- CONFIGURACIÓN IA ---
@@ -74,6 +78,7 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 
 col1, col2 = st.columns([1.2, 1])
 
+# --- VARIABLES GLOBALES PARA EVITAR ERRORES ---
 tc = 1
 ant_ars = 0
 ant_usd = 0
@@ -81,6 +86,9 @@ usado_ars = 0
 ant_pesos = 0
 tot_ars = 0
 dif = 0
+res_final = None
+mostrar_capital = 0
+mostrar_gasto = 0
 
 with col1:
     st.header("1. Vehículo")
@@ -102,6 +110,7 @@ with col1:
     es_usd = dm["moneda"] == "USD"
     simbolo = "u$s" if es_usd else "$"
 
+    # --- BONIFICACIÓN ---
     bon = 0
     if not st.session_state.vista_cliente:
         if dm.get("bonif", 0) > 0:
@@ -185,11 +194,6 @@ with col2:
 st.markdown("---")
 st.header("3 y 4. Financiación y Cuenta Final")
 financiar = st.checkbox("Financiar la diferencia", value=False)
-
-res_final = None
-mostrar_capital = dif
-mostrar_gasto = 0
-mostrar_total_banco = dif
 
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
@@ -336,7 +340,7 @@ if financiar and dif > 0:
             # --- BOTÓN PARA GUARDAR EN SUPABASE ---
             if st.button("💾 Guardar esta cotización en el CRM", type="primary", use_container_width=True):
                 try:
-                    conn.table("cotizaciones").insert({
+                    supabase.table("cotizaciones").insert({
                         "modelo": mod_sel,
                         "precio_total": tot_abonar,
                         "moneda": dm["moneda"],
@@ -348,9 +352,9 @@ if financiar and dif > 0:
                         "anticipo": ant_ars,
                         "usado": usado_ars
                     }).execute()
-                    st.success("¡Cotización guardada en Supabase!")
+                    st.success("¡Cotización guardada en el CRM exitosamente!")
                 except Exception as e:
-                    st.error(f"Error al guardar: {e}")
+                    st.error(f"Error al guardar en Supabase: {e}")
 
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
