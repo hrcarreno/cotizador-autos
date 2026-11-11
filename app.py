@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 
+# CAMBIO CLAVE 1: Forzamos que la barra lateral arranque ABIERTA
 st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="expanded")
 
 # --- 1. GESTIÓN DE TEMA Y CSS GLOBAL ---
@@ -8,10 +9,10 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # Inyectamos el CSS para ocultar SOLO la barra superior y el menú de opciones
+    # Inyectamos el CSS
     st.markdown("""
         <style>
-            /* Ocultar barra superior de Streamlit */
+            /* Ocultar SOLO la barra superior de Streamlit (Deploy, menu) */
             header[data-testid="stHeader"] { display: none !important; }
             [data-testid="stToolbar"] { display: none !important; }
             #MainMenu { visibility: hidden !important; }
@@ -28,80 +29,34 @@ def aplicar_tema():
     if st.session_state.tema == "Claro":
         st.markdown("""
             <style>
-                /* Fondo general */
                 .stApp { background-color: #F3F4F6 !important; }
-                
-                /* Barra lateral */
                 [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E5E7EB; }
                 [data-testid="stSidebar"] * { color: #111827 !important; }
-                
-                /* Textos generales */
                 h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #111827 !important; }
-                
-                /* Inputs y Selects */
-                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
-                .stSelectbox div[data-baseweb="select"] > div {
-                    background-color: #FFFFFF !important; 
-                    color: #111827 !important;
-                    border: 1px solid #D1D5DB !important;
-                    border-radius: 8px !important;
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] > div {
+                    background-color: #FFFFFF !important; color: #111827 !important; border: 1px solid #D1D5DB !important; border-radius: 8px !important;
                 }
-                
-                /* Contenedores (Cards) */
                 [data-testid="stVerticalBlockBorderWrapper"] { 
-                    background-color: #FFFFFF !important; 
-                    border: 1px solid #E5E7EB !important; 
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+                    background-color: #FFFFFF !important; border: 1px solid #E5E7EB !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
                 }
-                
-                /* Botones */
-                .stButton button { 
-                    background-color: #2563EB !important; 
-                    color: #FFFFFF !important; 
-                    border-radius: 8px !important;
-                    font-weight: 600 !important;
-                }
+                .stButton button { background-color: #2563EB !important; color: #FFFFFF !important; border-radius: 8px !important; font-weight: 600 !important; }
             </style>
         """, unsafe_allow_html=True)
     else:
         # --- MODO OSCURO PREMIUM ---
         st.markdown("""
             <style>
-                /* Fondo general */
                 .stApp { background-color: #0F172A !important; }
-                
-                /* Barra lateral */
                 [data-testid="stSidebar"] { background-color: #1E293B !important; border-right: 1px solid #334155; }
                 [data-testid="stSidebar"] * { color: #F8FAFC !important; }
-                
-                /* Textos generales */
                 h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #F8FAFC !important; }
-                
-                /* Inputs y Selects */
-                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
-                .stSelectbox div[data-baseweb="select"] > div {
-                    background-color: #0F172A !important; 
-                    color: #F8FAFC !important;
-                    border: 1px solid #334155 !important;
-                    border-radius: 8px !important;
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] > div {
+                    background-color: #0F172A !important; color: #F8FAFC !important; border: 1px solid #334155 !important; border-radius: 8px !important;
                 }
-                
-                /* Contenedores (Cards) */
                 [data-testid="stVerticalBlockBorderWrapper"] { 
-                    background-color: #1E293B !important; 
-                    border: 1px solid #334155 !important; 
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+                    background-color: #1E293B !important; border: 1px solid #334155 !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
                 }
-                
-                /* Botones */
-                .stButton button { 
-                    background-color: #3B82F6 !important; 
-                    color: #FFFFFF !important; 
-                    border-radius: 8px !important;
-                    font-weight: 600 !important;
-                }
+                .stButton button { background-color: #3B82F6 !important; color: #FFFFFF !important; border-radius: 8px !important; font-weight: 600 !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -140,7 +95,7 @@ def enviar_recuperacion(email):
 if st.session_state.user is None:
     aplicar_tema() 
     
-    # Ocultamos el menú de navegación de la barra lateral solo en el login
+    # CAMBIO CLAVE 2: Ocultamos SOLO el menú de navegación, no la barra entera
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
