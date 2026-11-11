@@ -27,7 +27,12 @@ es_admin_o_super = rol in ["Administrador", "Supervisor"]
 
 st.title("📋 CRM Inteligente")
 
-tab1, tab2, tab3 = st.tabs(["📊 Panel de Ventas", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
+# --- PESTAÑAS DINÁMICAS SEGÚN EL ROL ---
+if es_admin_o_super:
+    tab1, tab2, tab3 = st.tabs(["📊 Panel de Ventas", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
+else:
+    tab1 = st.tabs(["📊 Panel de Ventas"])[0] # Solo el vendedor ve una pestaña
+    tab2, tab3 = None, None
 
 # ==========================================
 # PESTAÑA 1: PANEL DE VENTAS
