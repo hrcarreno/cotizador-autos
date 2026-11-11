@@ -27,12 +27,20 @@ es_admin_o_super = rol in ["Administrador", "Supervisor"]
 
 st.title("📋 CRM Inteligente")
 
+# --- OBTENER LISTA DE VENDEDORES PARA ASIGNAR ---
+try:
+    # Buscamos todos los perfiles para el selector de asignación
+    perfiles_res = supabase.table("perfiles").select("email, nombre_completo").execute()
+    lista_vendedores = [p["email"] for p in perfiles_res.data]
+except:
+    lista_vendedores = []
+
 # --- PESTAÑAS DINÁMICAS SEGÚN EL ROL ---
 if es_admin_o_super:
-    tab1, tab2, tab3 = st.tabs(["📊 Panel de Ventas", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Panel de Ventas", "👥 Asignación Masiva", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 else:
     tab1 = st.tabs(["📊 Panel de Ventas"])[0]
-    tab2, tab3 = None, None
+    tab2, tab3, tab4 = None, None, None
 
 # ==========================================
 # PESTAÑA 1: PANEL DE VENTAS
@@ -46,11 +54,10 @@ with tab1:
         leads_raw = []
 
     if not leads_raw:
-        st.info("No hay leads cargados. Empezá importando un Excel.")
+        st.info("No hay leads cargados.")
     else:
         df = pd.DataFrame(leads_raw)
         
-        # FILTRO POR ROL
         if not es_admin_o_super:
             df = df[df['vendedor'] == usuario_actual]
             if df.empty:
@@ -98,7 +105,6 @@ with tab1:
                         }).execute()
                         st.rerun()
 
-        # FILTRO DE BÚSQUEDA
         if busqueda:
             df = df[df['nombre'].str.lower().str.contains(busqueda, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
             if df.empty:
@@ -156,7 +162,6 @@ with tab1:
                                 supabase.table("leads").delete().eq("id", row['id']).execute()
                                 st.rerun()
 
-                # --- HISTORIAL DE COTIZACIONES ---
                 with st.expander("💰 Ver Cotizaciones Guardadas"):
                     try:
                         cot_res = supabase.table("cotizaciones").select("*").eq("lead_id", row['id']).execute()
@@ -171,10 +176,74 @@ with tab1:
 
 
 # ==========================================
-# PESTAÑA 2: BORRADO MÚLTIPLE (SOLO ADMIN/SUPER)
+# PESTAÑA 2: ASIGNACIÓN MASIVA (SOLO ADMIN/SUPER)
 # ==========================================
 if tab2 is not None:
     with tab2:
+        st.subheader("Asignación Masiva de Leads")
+        st.write("Seleccioná los leads y asignáselos a un vendedor en un solo clic.")
+        
+        try:
+            response = supabase.table("leads").select("id, nombre, telefono, modelo_interes, vendedor").order("id", desc=True).execute()
+            leads_raw = response.data
+            
+            if not leads_raw:
+                st.info("No hay leads para asignar.")
+            else:
+                df_asig = pd.DataFrame(leads_raw)
+                df_asig["Seleccionar"] = False
+                cols = ["Seleccionar"] + [c for c in df_asig.columns if c != "Seleccionar"]
+                df_asig = df_asig[cols]
+
+                # Selector del vendedor destino
+                if lista_vendedores:
+                    vendedor_destino = st.selectbox("Asignar los seleccionados a:", lista_vendedores)
+                else:
+                    st.warning("No hay vendedores registrados en la base de datos.")
+                    vendedor_destino = None
+
+                # Botones de selección rápida
+                col_btn1, col_btn2, _ = st.columns([1, 1, 2])
+                if col_btn1.button("✅ Seleccionar Todo", use_container_width=True, key="asig_sel_all"):
+                    st.session_state.asig_select_all = True
+                    st.rerun()
+                if col_btn2.button("❌ Deseleccionar Todo", use_container_width=True, key="asig_desel_all"):
+                    st.session_state.asig_select_all = False
+                    st.rerun()
+
+                if st.session_state.get("asig_select_all", False):
+                    df_asig["Seleccionar"] = True
+
+                df_seleccion = st.data_editor(
+                    df_asig, hide_index=True, use_container_width=True,
+                    column_config={
+                        "Seleccionar": st.column_config.CheckboxColumn("🗑️"),
+                        "id": st.column_config.NumberColumn("ID", disabled=True),
+                    },
+                    key="tabla_asignacion"
+                )
+                
+                seleccionados = df_seleccion[df_seleccion["Seleccionar"] == True]
+                
+                if not seleccionados.empty and vendedor_destino:
+                    st.warning(f"Tenés {len(seleccionados)} lead(s) seleccionado(s).")
+                    if st.button(f"👤 ASIGNAR A {vendedor_destino}", type="primary", use_container_width=True):
+                        ids_a_asignar = seleccionados["id"].tolist()
+                        try:
+                            supabase.table("leads").update({"vendedor": vendedor_destino}).in_("id", ids_a_asignar).execute()
+                            st.success(f"¡Se asignaron {len(ids_a_asignar)} leads a {vendedor_destino}!")
+                            st.session_state.asig_select_all = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al asignar: {e}")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# ==========================================
+# PESTAÑA 3: BORRADO MÚLTIPLE (SOLO ADMIN/SUPER)
+# ==========================================
+if tab3 is not None:
+    with tab3:
         st.subheader("Borrado Múltiple de Leads")
         
         try:
@@ -225,10 +294,10 @@ if tab2 is not None:
             st.error(f"Error: {e}")
 
 # ==========================================
-# PESTAÑA 3: IMPORTAR EXCEL (SOLO ADMIN/SUPER)
+# PESTAÑA 4: IMPORTAR EXCEL (SOLO ADMIN/SUPER)
 # ==========================================
-if tab3 is not None:
-    with tab3:
+if tab4 is not None:
+    with tab4:
         st.subheader("Importar Leads desde Excel")
         archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
         
