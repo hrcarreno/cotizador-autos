@@ -21,6 +21,14 @@ except Exception as e:
     st.error(f"Error de conexión con Supabase: {e}")
     st.stop()
 
+# --- USUARIO LOGUEADO ---
+if "user" not in st.session_state or st.session_state.user is None:
+    st.error("Debés iniciar sesión.")
+    st.stop()
+
+usuario_actual = st.session_state.user.email
+rol = st.session_state.user.user_metadata.get("rol", "Usuario")
+
 # --- CONFIGURACIÓN IA ---
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
@@ -50,22 +58,18 @@ def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-    
     pdf.cell(0, 10, f"Vehículo: BYD {mod_sel}", ln=True)
     pdf.cell(0, 10, f"Precio de Lista: ${lista:,.0f}", ln=True)
     if bon > 0:
         pdf.cell(0, 10, f"Bonificación: -${bon:,.0f}", ln=True)
     pdf.cell(0, 10, f"TOTAL A ABONAR: ${total:,.0f}", ln=True)
-    
     if cuota:
         pdf.ln(5)
         pdf.cell(0, 10, f"Financiación a {plazo} meses:", ln=True)
         pdf.cell(0, 10, f"Cuota inicial estimada: ${cuota:,.0f}", ln=True)
-    
     pdf.ln(10)
     pdf.cell(0, 10, "Valores sujetos a la lista vigente y aprobación crediticia.", ln=True)
     pdf.cell(0, 10, "No incluye seguro.", ln=True)
-    
     return bytes(pdf.output())
 
 def input_moneda(label, value, key, help=None):
@@ -97,10 +101,21 @@ def procesar_pedido_ia(prompt):
     except Exception:
         return None
 
+# --- CARGAR LEADS DEL VENDEDOR ---
+try:
+    leads_res = supabase.table("leads").select("id, nombre").execute()
+    lista_leads = leads_res.data
+    
+    # Si es vendedor, filtramos solo sus leads
+    if rol == "Usuario":
+        leads_res = supabase.table("leads").select("id, nombre").eq("vendedor", usuario_actual).execute()
+        lista_leads = leads_res.data
+except Exception:
+    lista_leads = []
+
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.header("🤖 Asistente")
-    st.write("Contale qué pide el cliente.")
     prompt_ia = st.chat_input("Ej: Quiere una Song Pro, entrega 10 palos...")
     if prompt_ia and ia_activa:
         with st.spinner("Procesando..."):
@@ -111,7 +126,6 @@ with st.sidebar:
                 st.rerun()
     
     st.divider()
-    st.caption("Estado de Conexión")
     if streamlit_js_eval(js_expressions="navigator.onLine"):
         st.success("🟢 Online - Guardado activo")
     else:
@@ -119,6 +133,16 @@ with st.sidebar:
 
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
+
+# --- SELECTOR DE LEAD ---
+if lista_leads:
+    opciones_leads = {f"{l['nombre']} (ID: {l['id']})": l['id'] for l in lista_leads}
+    lead_seleccionado_nombre = st.selectbox("🔗 Vincular cotización a un cliente (opcional)", ["Ninguno"] + list(opciones_leads.keys()))
+    lead_id = opciones_leads[lead_seleccionado_nombre] if lead_seleccionado_nombre != "Ninguno" else None
+else:
+    lead_id = None
+    if rol == "Usuario":
+        st.caption("💡 No tenés leads cargados aún. Podés guardar la cotización sin vincular.")
 
 col1, col2 = st.columns([1.2, 1])
 
@@ -172,7 +196,6 @@ with col1:
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
     st.header("2. Qué entrega el cliente")
-    
     telefono_cliente = st.text_input("📱 Teléfono del Cliente (opcional)", placeholder="Ej: 1155554444")
 
     tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
@@ -400,15 +423,13 @@ with col_acc1:
             plazo_guardar = res_final["plazo"] if financiar else 0
             linea_guardar = res_final["linea"]["n"] if financiar else "Contado"
             
-            # Capturamos el email del vendedor logueado
-            vendedor_actual = st.session_state.user.email if "user" in st.session_state and st.session_state.user else "Desconocido"
-            
             supabase.table("cotizaciones").insert({
                 "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
                 "capital_financiado": cap_guardar, "gasto_otorgamiento": gasto_guardar,
                 "cuota_inicial": cuota_guardar, "plazo_meses": plazo_guardar,
                 "linea": linea_guardar, "anticipo": ant_ars, "usado": usado_ars,
-                "vendedor": vendedor_actual # <-- GUARDAMOS EL VENDEDOR
+                "vendedor": usuario_actual,
+                "lead_id": lead_id # <-- VINCULAMOS AL LEAD
             }).execute()
             st.success("¡Guardado!")
         except Exception as e:
