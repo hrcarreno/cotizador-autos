@@ -246,6 +246,12 @@ with col2:
 st.markdown("---")
 st.header("3 y 4. Financiación y Cierre")
 
+# --- NUEVO CAMPO DE MONTO MÁXIMO ---
+st.markdown("#### Aprobación del Banco")
+monto_max_banco = input_moneda("Monto Máximo Aprobado por el Banco ($) - Opcional", 0, key="max_banco")
+if monto_max_banco > 0:
+    st.info(f"El sistema solo mostrará opciones que financien hasta ${monto_max_banco:,.0f}.")
+
 financiar = st.checkbox("Simular Financiación", value=False)
 
 if financiar:
@@ -265,27 +271,32 @@ if financiar:
                 gasto_pct = test_o["gasto_pct"] / 100
                 
                 if pr == "Equilibrado (no poner extra)":
-                    # Lógica correcta: El cliente tiene X dinero.
-                    # Parte va al capital (Anticipo) y parte al Gasto.
                     dinero_cliente = ant_ars + usado_ars
-                    
-                    # El Capital a financiar es el que surge de restar el anticipo real
-                    # Formula: Anticipo = Dinero / (1 + Gasto)
                     anticipo_teorico = dinero_cliente / (1 + gasto_pct) if (1 + gasto_pct) > 0 else dinero_cliente
                     capital_financiado = tot_ars - anticipo_teorico
                     
-                    # Evaluamos con ese capital
+                    # Si hay monto máximo, descartamos si el capital supera el tope
+                    if monto_max_banco > 0 and capital_financiado > monto_max_banco:
+                        continue
+                        
                     o = evaluar_linea(l, r, capital_financiado, tot_ars, anticipo_teorico, 0.0, True)
                     o["mostrar_poner"] = dinero_cliente
                     o["anticipo_real"] = anticipo_teorico
                 else:
+                    # Si hay monto máximo, descartamos si la diferencia original supera el tope
+                    if monto_max_banco > 0 and dif > monto_max_banco:
+                        continue
+                        
                     o = test_o
                     o["mostrar_poner"] = test_o["poner_ars"]
                     o["anticipo_real"] = ant_ars + usado_ars
                 opts.append(o)
 
         if not opts:
-            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales.")
+            if monto_max_banco > 0 and dif > monto_max_banco:
+                st.error(f"El banco aprueba ${monto_max_banco:,.0f}, pero necesitás financiar ${dif:,.0f}. Te faltan ${dif - monto_max_banco:,.0f} de anticipo o usado para poder avanzar.")
+            else:
+                st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales.")
         else:
             if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
             elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
