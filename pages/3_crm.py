@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
 from supabase import create_client, Client
+from streamlit_calendar import calendar
 
 st.set_page_config(page_title="CRM Inteligente", layout="wide")
 
@@ -36,9 +37,9 @@ except:
 
 # --- PESTAÑAS DINÁMICAS SEGÚN EL ROL ---
 if es_admin_o_super:
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Panel de Ventas", "👥 Asignación Masiva", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
+    tab1, tab_calendario, tab2, tab3, tab4 = st.tabs(["📊 Panel de Ventas", "📅 Agenda", "👥 Asignación Masiva", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 else:
-    tab1 = st.tabs(["📊 Panel de Ventas"])[0]
+    tab1, tab_calendario = st.tabs(["📊 Panel de Ventas", "📅 Agenda"])
     tab2, tab3, tab4 = None, None, None
 
 # ==========================================
@@ -57,7 +58,6 @@ with tab1:
     else:
         df = pd.DataFrame(leads_raw)
         
-        # FILTRO BASE POR ROL (Vendedor solo ve lo suyo)
         if not es_admin_o_super:
             df = df[df['vendedor'] == usuario_actual]
             if df.empty:
@@ -67,7 +67,6 @@ with tab1:
         df['fecha_proximo_contacto'] = pd.to_datetime(df['fecha_proximo_contacto']).dt.date
         hoy = date.today()
 
-        # DASHBOARD
         c1, c2, c3, c4 = st.columns(4)
         total = len(df)
         cerrados = len(df[df['estado'] == 'Cerrado'])
@@ -81,7 +80,6 @@ with tab1:
 
         st.divider()
 
-        # --- PANEL DE FILTROS AVANZADOS (SOLO ADMIN/SUPER) ---
         if es_admin_o_super:
             with st.expander("🔍 Filtros Avanzados de Búsqueda", expanded=True):
                 f_col1, f_col2, f_col3, f_col4 = st.columns(4)
@@ -95,7 +93,6 @@ with tab1:
                 with f_col4:
                     fecha_desde = st.date_input("Próximo contacto desde", value=None)
 
-                # Aplicamos los filtros
                 if filtro_vend:
                     df = df[df['vendedor'].isin(filtro_vend)]
                 if filtro_mod:
@@ -105,7 +102,6 @@ with tab1:
                 if fecha_desde:
                     df = df[df['fecha_proximo_contacto'] >= fecha_desde]
 
-        # BÚSQUEDA GENERAL Y NUEVO LEAD
         col_search, col_btn = st.columns([4, 1])
         with col_search:
             busqueda = st.text_input("🔍 Buscar por nombre o teléfono...", "").lower()
@@ -129,7 +125,6 @@ with tab1:
                         }).execute()
                         st.rerun()
 
-        # Búsqueda de texto
         if busqueda:
             df = df[df['nombre'].str.lower().str.contains(busqueda, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
             if df.empty:
@@ -199,6 +194,63 @@ with tab1:
                     except Exception as e:
                         st.error(f"Error al buscar cotizaciones: {e}")
 
+# ==========================================
+# PESTAÑA CALENDARIO: AGENDA DE CONTACTOS
+# ==========================================
+with tab_calendario:
+    st.subheader("📅 Agenda de Contactos")
+    
+    try:
+        # Traemos todos los leads (o solo los del vendedor si corresponde)
+        response = supabase.table("leads").select("*").execute()
+        leads_cal = response.data
+        
+        if not leads_cal:
+            st.info("No hay leads para mostrar en el calendario.")
+        else:
+            df_cal = pd.DataFrame(leads_cal)
+            
+            # Filtro por rol
+            if not es_admin_o_super:
+                df_cal = df_cal[df_cal['vendedor'] == usuario_actual]
+            
+            eventos = []
+            for _, row in df_cal.iterrows():
+                if pd.notna(row.get('fecha_proximo_contacto')):
+                    color = "#E24A4A" if row['estado'] not in ['Cerrado', 'Perdido'] and pd.to_datetime(row['fecha_proximo_contacto']).date() < date.today() else "#4A90E2"
+                    
+                    eventos.append({
+                        "title": f"{row['nombre']} - {row['modelo_interes']}",
+                        "start": row['fecha_proximo_contacto'],
+                        "allDay": True,
+                        "color": color,
+                        "extendedProps": {
+                            "telefono": row['telefono'],
+                            "estado": row['estado'],
+                            "vendedor": row['vendedor']
+                        }
+                    })
+            
+            calendar_options = {
+                "editable": False,
+                "selectable": True,
+                "headerToolbar": {
+                    "left": "today prev,next",
+                    "center": "title",
+                    "right": "dayGridMonth,dayGridWeek,listWeek",
+                },
+                "initialView": "dayGridMonth",
+                "locale": "es"
+            }
+            
+            cal = calendar(events=eventos, options=calendar_options)
+            
+            # Si el usuario clickea un evento, le mostramos info
+            if cal and "eventClick" in cal:
+                st.info(f"**Lead seleccionado:** {cal['eventClick']['event']['title']}")
+
+    except Exception as e:
+        st.error(f"Error al cargar el calendario: {e}")
 
 # ==========================================
 # PESTAÑA 2: ASIGNACIÓN MASIVA (SOLO ADMIN/SUPER)
