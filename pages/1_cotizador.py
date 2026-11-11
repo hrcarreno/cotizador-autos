@@ -246,8 +246,6 @@ with col2:
 st.markdown("---")
 st.header("3 y 4. Financiación y Cierre")
 
-# --- NUEVO CAMPO DE MONTO MÁXIMO ---
-st.markdown("#### Aprobación del Banco")
 monto_max_banco = input_moneda("Monto Máximo Aprobado por el Banco ($) - Opcional", 0, key="max_banco")
 if monto_max_banco > 0:
     st.info(f"El sistema solo mostrará opciones que financien hasta ${monto_max_banco:,.0f}.")
@@ -275,7 +273,6 @@ if financiar:
                     anticipo_teorico = dinero_cliente / (1 + gasto_pct) if (1 + gasto_pct) > 0 else dinero_cliente
                     capital_financiado = tot_ars - anticipo_teorico
                     
-                    # Si hay monto máximo, descartamos si el capital supera el tope
                     if monto_max_banco > 0 and capital_financiado > monto_max_banco:
                         continue
                         
@@ -283,7 +280,6 @@ if financiar:
                     o["mostrar_poner"] = dinero_cliente
                     o["anticipo_real"] = anticipo_teorico
                 else:
-                    # Si hay monto máximo, descartamos si la diferencia original supera el tope
                     if monto_max_banco > 0 and dif > monto_max_banco:
                         continue
                         
@@ -371,7 +367,12 @@ if financiar:
                     with c_fact2:
                         st.markdown("**MONTO**")
                         st.write(f"{simbolo} {tot_abonar:,.0f}")
-                        st.write(f"- {simbolo} {res_final['anticipo_real']/tc:,.0f}" if es_usd else f"- $ {res_final['anticipo_real']:,.0f}")
+                        # ACÁ CORREGIMOS: Mostramos el monto que el cliente entrega (Capital + Gasto)
+                        monto_entrega_cliente = res_final['anticipo_real'] + (mostrar_gasto if pr_actual != "Equilibrado (no poner extra)" else 0)
+                        if pr_actual == "Equilibrado (no poner extra)":
+                            st.write(f"- {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"- $ {ant_ars + usado_ars:,.0f}")
+                        else:
+                            st.write(f"- {simbolo} {res_final['anticipo_real']/tc:,.0f}" if es_usd else f"- $ {res_final['anticipo_real']:,.0f}")
                         st.write(f"$ {mostrar_capital:,.0f}")
                         st.write(f"$ {mostrar_gasto:,.0f}")
                     
