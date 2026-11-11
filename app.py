@@ -11,18 +11,47 @@ def aplicar_tema():
     if st.session_state.tema == "Claro":
         st.markdown("""
             <style>
-                /* Fondo claro y textos oscuros */
-                .stApp { background-color: #f4f6f9; color: #1b2430; }
-                [data-testid="stSidebar"] { background-color: #ffffff; }
-                .stTextInput input, .stSelectbox div, .stTextArea textarea { 
-                    background-color: #ffffff !important; color: #1b2430 !important; 
+                /* Fondo general */
+                .stApp { background-color: #f8f9fa; color: #1b2430; }
+                [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e0e0e0; }
+                
+                /* Textos generales */
+                h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1b2430 !important; }
+                
+                /* Inputs, selects y textareas */
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] > div {
+                    background-color: #ffffff !important; 
+                    color: #1b2430 !important;
+                    border: 1px solid #cccccc !important;
                 }
-                div[data-testid="stMetricValue"] { color: #1b2430; }
-                .stButton button { background-color: #1f78b4; color: white; }
+                
+                /* Botones */
+                .stButton button { 
+                    background-color: #1f78b4 !important; 
+                    color: white !important; 
+                    border: none !important;
+                }
+                .stButton button:hover { background-color: #155a8a !important; }
+                
+                /* Pestañas y Expanders */
+                .stTabs [data-baseweb="tab-list"] { background-color: #ffffff; }
+                .stTabs [data-baseweb="tab"] { color: #1b2430 !important; }
+                .streamlit-expanderHeader { color: #1b2430 !important; background-color: #ffffff !important; }
+                
+                /* Tablas */
+                [data-testid="stTable"] table { background-color: #ffffff !important; color: #1b2430 !important; }
+                [data-testid="stDataFrame"] { color: #1b2430 !important; }
+                
+                /* Métricas */
+                [data-testid="stMetricValue"] { color: #1b2430 !important; }
+                [data-testid="stMetricLabel"] { color: #555555 !important; }
+                
+                /* Contenedores con borde */
+                [data-testid="stVerticalBlockBorderWrapper"] { background-color: #ffffff; border-color: #e0e0e0 !important; }
             </style>
         """, unsafe_allow_html=True)
     else:
-        # Modo oscuro (por defecto)
+        # Modo oscuro (por defecto, no forzamos casi nada para no romper lo nativo)
         st.markdown("""
             <style>
                 .stApp { background-color: #0e1117; color: #fafafa; }
@@ -63,7 +92,7 @@ def enviar_recuperacion(email):
 
 # --- 4. PANTALLA DE LOGIN ---
 if st.session_state.user is None:
-    aplicar_tema() # Aplica el tema al login
+    aplicar_tema() 
     
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
@@ -89,12 +118,12 @@ if st.session_state.user is None:
         
         st.divider()
         st.radio("Preferencia de Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True)
-        aplicar_tema() # Recarga el tema si se cambia en el login
+        aplicar_tema()
     
     st.stop()
 
 # --- 5. APLICACIÓN PRINCIPAL (SI ESTÁ LOGUEADO) ---
-aplicar_tema() # Aplica el tema al sistema
+aplicar_tema()
 
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
@@ -104,7 +133,7 @@ with st.sidebar:
     
     st.divider()
     st.radio("Tema de la App:", ["Oscuro", "Claro"], key="tema", horizontal=True)
-    aplicar_tema() # Recarga el tema si se cambia en la barra lateral
+    aplicar_tema()
     
     st.divider()
     if st.button("Cerrar Sesión", use_container_width=True):
