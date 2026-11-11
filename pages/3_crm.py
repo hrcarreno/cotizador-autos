@@ -31,7 +31,7 @@ st.title("📋 CRM Inteligente")
 if es_admin_o_super:
     tab1, tab2, tab3 = st.tabs(["📊 Panel de Ventas", "🗑️ Borrado Múltiple", "📥 Importar desde Excel"])
 else:
-    tab1 = st.tabs(["📊 Panel de Ventas"])[0] # Solo el vendedor ve una pestaña
+    tab1 = st.tabs(["📊 Panel de Ventas"])[0]
     tab2, tab3 = None, None
 
 # ==========================================
@@ -156,10 +156,9 @@ with tab1:
                                 supabase.table("leads").delete().eq("id", row['id']).execute()
                                 st.rerun()
 
-                # --- HISTORIAL DE COTIZACIONES (NUEVO) ---
+                # --- HISTORIAL DE COTIZACIONES ---
                 with st.expander("💰 Ver Cotizaciones Guardadas"):
                     try:
-                        # Buscamos las cotizaciones que tengan el ID de este lead
                         cot_res = supabase.table("cotizaciones").select("*").eq("lead_id", row['id']).execute()
                         if cot_res.data:
                             st.write(f"Se encontraron {len(cot_res.data)} cotización(es) para este cliente:")
@@ -172,12 +171,10 @@ with tab1:
 
 
 # ==========================================
-# PESTAÑA 2: BORRADO MÚLTIPLE
+# PESTAÑA 2: BORRADO MÚLTIPLE (SOLO ADMIN/SUPER)
 # ==========================================
-with tab2:
-    if not es_admin_o_super:
-        st.warning("Acceso restringido. Solo supervisores y administradores pueden borrar leads.")
-    else:
+if tab2 is not None:
+    with tab2:
         st.subheader("Borrado Múltiple de Leads")
         
         try:
@@ -228,35 +225,36 @@ with tab2:
             st.error(f"Error: {e}")
 
 # ==========================================
-# PESTAÑA 3: IMPORTAR EXCEL
+# PESTAÑA 3: IMPORTAR EXCEL (SOLO ADMIN/SUPER)
 # ==========================================
-with tab3:
-    st.subheader("Importar Leads desde Excel")
-    archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
-    
-    if archivo_excel is not None:
-        try:
-            df_excel = pd.read_excel(archivo_excel)
-            st.dataframe(df_excel.head(5))
-            
-            if st.button("Confirmar e Importar", type="primary"):
-                exito, errores = 0, 0
-                for _, row in df_excel.iterrows():
-                    try:
-                        supabase.table("leads").insert({
-                            "nombre": str(row.get('nombre', row.get('Nombre', 'Sin Nombre'))),
-                            "telefono": str(row.get('telefono', row.get('Teléfono', ''))),
-                            "origen": str(row.get('origen', row.get('Origen', 'Excel'))),
-                            "modelo_interes": str(row.get('modelo_interes', row.get('Modelo', 'Desconocido'))),
-                            "estado": "Nuevo",
-                            "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
-                            "notas": str(row.get('notas', row.get('Notas', ''))),
-                            "vendedor": usuario_actual
-                        }).execute()
-                        exito += 1
-                    except:
-                        errores += 1
-                st.success(f"¡Importados {exito} leads! Errores: {errores}.")
-                st.rerun()
-        except Exception as e:
-            st.error(f"Error: {e}")
+if tab3 is not None:
+    with tab3:
+        st.subheader("Importar Leads desde Excel")
+        archivo_excel = st.file_uploader("Seleccioná el archivo Excel (.xlsx)", type=["xlsx"])
+        
+        if archivo_excel is not None:
+            try:
+                df_excel = pd.read_excel(archivo_excel)
+                st.dataframe(df_excel.head(5))
+                
+                if st.button("Confirmar e Importar", type="primary"):
+                    exito, errores = 0, 0
+                    for _, row in df_excel.iterrows():
+                        try:
+                            supabase.table("leads").insert({
+                                "nombre": str(row.get('nombre', row.get('Nombre', 'Sin Nombre'))),
+                                "telefono": str(row.get('telefono', row.get('Teléfono', ''))),
+                                "origen": str(row.get('origen', row.get('Origen', 'Excel'))),
+                                "modelo_interes": str(row.get('modelo_interes', row.get('Modelo', 'Desconocido'))),
+                                "estado": "Nuevo",
+                                "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
+                                "notas": str(row.get('notas', row.get('Notas', ''))),
+                                "vendedor": usuario_actual
+                            }).execute()
+                            exito += 1
+                        except:
+                            errores += 1
+                    st.success(f"¡Importados {exito} leads! Errores: {errores}.")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
