@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client, Client
 
 # Forzamos que la barra lateral esté ABIERTA
@@ -9,18 +10,17 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # CSS para ocultar SOLO los botones de Streamlit, no la flechita de la barra
+    # CSS para ocultar SOLO los botones de Streamlit y estilizar la barra lateral
     st.markdown("""
         <style>
-            /* Ocultamos el menú de opciones (3 puntitos) y el botón de Deploy */
+            /* Ocultamos el menú de opciones y el botón de Deploy */
             #MainMenu { visibility: hidden !important; }
             [data-testid="stToolbar"] { display: none !important; }
             .stDeployButton { display: none !important; }
             footer { visibility: hidden !important; }
             
-            /* Ocultamos el texto "keyboard_double_arrow" que aparece en versiones nuevas */
-            [data-testid="stSidebarCollapseButton"] span { font-size: 0; }
-            [data-testid="stSidebarCollapseButton"]::after { content: "◀"; font-size: 14px; }
+            /* Ocultamos la flechita nativa de Streamlit (la reemplazaremos por JS) */
+            [data-testid="stSidebarCollapseButton"] { display: none !important; }
             
             /* Importar fuente Inter */
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -63,6 +63,54 @@ def aplicar_tema():
             </style>
         """, unsafe_allow_html=True)
 
+# --- INYECCIÓN DE BOTÓN FLOTANTE PARA ABRIR LA BARRA LATERAL ---
+# Este script se asegura de que siempre haya un botón para abrir la barra, incluso si Streamlit lo oculta.
+def boton_abrir_sidebar():
+    components.html(
+        """
+        <script>
+            function checkSidebar() {
+                const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+                if (sidebar) {
+                    // Si la barra lateral está colapsada, mostramos el botón
+                    if (sidebar.getAttribute('aria-expanded') === 'false') {
+                        let btn = window.parent.document.getElementById('custom-sidebar-btn');
+                        if (!btn) {
+                            btn = window.parent.document.createElement('button');
+                            btn.id = 'custom-sidebar-btn';
+                            btn.innerHTML = '☰';
+                            btn.style.position = 'fixed';
+                            btn.style.top = '15px';
+                            btn.style.left = '15px';
+                            btn.style.zIndex = '999999';
+                            btn.style.padding = '10px 15px';
+                            btn.style.backgroundColor = '#2563EB';
+                            btn.style.color = 'white';
+                            btn.style.border = 'none';
+                            btn.style.borderRadius = '8px';
+                            btn.style.cursor = 'pointer';
+                            btn.style.fontSize = '20px';
+                            btn.onclick = function() {
+                                const toggleBtn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+                                if (toggleBtn) toggleBtn.click();
+                            };
+                            window.parent.document.body.appendChild(btn);
+                        }
+                    } else {
+                        // Si está abierta, ocultamos el botón
+                        const btn = window.parent.document.getElementById('custom-sidebar-btn');
+                        if (btn) btn.remove();
+                    }
+                }
+            }
+            // Revisamos cada segundo si la barra se cerró
+            setInterval(checkSidebar, 1000);
+            checkSidebar();
+        </script>
+        """,
+        height=0,
+    )
+
 # --- 2. CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
@@ -97,8 +145,8 @@ def enviar_recuperacion(email):
 # --- 4. PANTALLA DE LOGIN ---
 if st.session_state.user is None:
     aplicar_tema() 
+    boton_abrir_sidebar() # Inyectamos el botón por si la barra está cerrada
     
-    # Ocultamos SOLO el menú de navegación en el login
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
@@ -132,6 +180,7 @@ if st.session_state.user is None:
 
 # --- 5. APLICACIÓN PRINCIPAL ---
 aplicar_tema()
+boton_abrir_sidebar() # Inyectamos el botón por si la barra está cerrada
 
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
