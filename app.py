@@ -1,93 +1,137 @@
 import streamlit as st
 from supabase import create_client, Client
 
-st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="expanded")
 
-# --- 1. GESTIÓN DE TEMA PROFESIONAL ---
+# --- 1. GESTIÓN DE TEMA Y CSS GLOBAL ---
 if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
+    # Importamos la fuente Inter (estándar en diseño moderno)
+    st.markdown('<style>@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap\');</style>', unsafe_allow_html=True)
+    
     if st.session_state.tema == "Claro":
-        # INYECCIÓN QUIRÚRGICA DE CSS PARA MODO CLARO
         st.markdown("""
             <style>
-                /* Variables base */
+                /* --- TEMA CLARO PREMIUM --- */
                 :root { color-scheme: light; }
+                * { font-family: 'Inter', sans-serif !important; }
                 
-                /* Fondo general de la app */
-                .stApp { background-color: #F8FAFC; }
+                /* Fondo y Sidebar */
+                .stApp { background-color: #F3F4F6 !important; }
+                [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E5E7EB; }
                 
-                /* Sidebar */
-                [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
+                /* Tipografía */
+                h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #111827 !important; }
+                h1 { font-weight: 700 !important; letter-spacing: -0.02em; }
+                h2 { font-weight: 600 !important; }
                 
-                /* Textos generales */
-                h1, h2, h3, h4, h5, h6, p, span, div, label { color: #1E293B !important; }
-                
-                /* Inputs, Selects, Textareas */
-                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
-                .stSelectbox div[data-baseweb="select"] > div,
-                .stMultiSelect div[data-baseweb="select"] > div {
+                /* Contenedores (Tarjetas) */
+                [data-testid="stVerticalBlockBorderWrapper"] { 
                     background-color: #FFFFFF !important; 
-                    color: #1E293B !important;
-                    border: 1px solid #CBD5E1 !important;
+                    border: 1px solid #E5E7EB !important; 
+                    border-radius: 12px !important;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+                    padding: 1.5rem !important;
+                }
+                
+                /* Inputs */
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
+                .stSelectbox div[data-baseweb="select"] > div {
+                    background-color: #FFFFFF !important; 
+                    color: #111827 !important;
+                    border: 1px solid #D1D5DB !important;
                     border-radius: 8px !important;
+                    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+                }
+                .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox div[data-baseweb="select"] > div:focus-within {
+                    border-color: #2563EB !important;
+                    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
                 }
                 
                 /* Botones */
                 .stButton button { 
-                    background-color: #1E40AF !important; /* Azul profundo */
+                    background-color: #2563EB !important; 
                     color: #FFFFFF !important; 
                     border: none !important;
                     border-radius: 8px !important;
-                    transition: all 0.2s ease;
+                    font-weight: 600 !important;
+                    padding: 0.5rem 1rem !important;
+                    transition: all 0.2s ease !important;
                 }
-                .stButton button:hover { background-color: #1D4ED8 !important; }
+                .stButton button:hover { background-color: #1D4ED8 !important; transform: translateY(-1px); }
                 
                 /* Pestañas */
-                .stTabs [data-baseweb="tab-list"] { background-color: #FFFFFF; border-radius: 8px; padding: 4px; }
-                .stTabs [data-baseweb="tab"] { color: #64748B !important; }
-                .stTabs [aria-selected="true"] { color: #1E40AF !important; font-weight: bold; }
+                .stTabs [data-baseweb="tab-list"] { background-color: #F3F4F6; border-radius: 10px; padding: 4px; }
+                .stTabs [data-baseweb="tab"] { color: #6B7280 !important; border-radius: 8px; padding: 8px 16px; }
+                .stTabs [aria-selected="true"] { background-color: #FFFFFF !important; color: #111827 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
                 
-                /* Expanders */
-                .streamlit-expanderHeader { 
-                    background-color: #FFFFFF !important; 
-                    color: #1E293B !important; 
-                    border: 1px solid #E2E8F0 !important;
+                /* Tablas */
+                [data-testid="stDataFrame"], [data-testid="stTable"] { background-color: #FFFFFF !important; border-radius: 8px; border: 1px solid #E5E7EB !important; }
+                
+                /* Alertas y Notas */
+                .stAlert { border-radius: 8px !important; }
+                [data-testid="stNotification"] { border-radius: 8px !important; }
+            </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <style>
+                /* --- TEMA OSCURO PREMIUM (MIDNIGHT) --- */
+                :root { color-scheme: dark; }
+                * { font-family: 'Inter', sans-serif !important; }
+                
+                /* Fondo y Sidebar */
+                .stApp { background-color: #0F172A !important; }
+                [data-testid="stSidebar"] { background-color: #1E293B !important; border-right: 1px solid #334155; }
+                
+                /* Tipografía */
+                h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #F8FAFC !important; }
+                h1 { font-weight: 700 !important; letter-spacing: -0.02em; }
+                h2 { font-weight: 600 !important; }
+                
+                /* Contenedores (Tarjetas) */
+                [data-testid="stVerticalBlockBorderWrapper"] { 
+                    background-color: #1E293B !important; 
+                    border: 1px solid #334155 !important; 
+                    border-radius: 12px !important;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+                    padding: 1.5rem !important;
+                }
+                
+                /* Inputs */
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
+                .stSelectbox div[data-baseweb="select"] > div {
+                    background-color: #0F172A !important; 
+                    color: #F8FAFC !important;
+                    border: 1px solid #334155 !important;
                     border-radius: 8px !important;
                 }
-                .streamlit-expanderContent { background-color: #FFFFFF !important; }
-                
-                /* Tablas de datos */
-                [data-testid="stTable"], [data-testid="stDataFrame"] { 
-                    background-color: #FFFFFF !important; 
-                    color: #1E293B !important; 
-                    border: 1px solid #E2E8F0 !important;
+                .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox div[data-baseweb="select"] > div:focus-within {
+                    border-color: #3B82F6 !important;
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
                 }
                 
-                /* Métricas del CRM */
-                [data-testid="stMetricValue"] { color: #0F172A !important; }
-                [data-testid="stMetricLabel"] { color: #64748B !important; }
+                /* Botones */
+                .stButton button { 
+                    background-color: #3B82F6 !important; 
+                    color: #FFFFFF !important; 
+                    border: none !important;
+                    border-radius: 8px !important;
+                    font-weight: 600 !important;
+                    padding: 0.5rem 1rem !important;
+                    transition: all 0.2s ease !important;
+                }
+                .stButton button:hover { background-color: #2563EB !important; transform: translateY(-1px); }
                 
-                /* Contenedores con borde (Cards) */
-                [data-testid="stVerticalBlockBorderWrapper"] { 
-                    background-color: #FFFFFF !important; 
-                    border: 1px solid #E2E8F0 !important; 
-                    border-radius: 12px !important;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
-                }
+                /* Pestañas */
+                .stTabs [data-baseweb="tab-list"] { background-color: #0F172A; border-radius: 10px; padding: 4px; }
+                .stTabs [data-baseweb="tab"] { color: #94A3B8 !important; border-radius: 8px; padding: 8px 16px; }
+                .stTabs [aria-selected="true"] { background-color: #1E293B !important; color: #F8FAFC !important; font-weight: 600; }
                 
-                /* Ajuste para el botón de píldora (radio horizontal) */
-                div[role="radiogroup"] > label { 
-                    background-color: #E2E8F0; 
-                    padding: 8px 16px; 
-                    border-radius: 20px; 
-                    color: #1E293B !important;
-                }
-                div[role="radiogroup"] > label[data-checked="true"] {
-                    background-color: #1E40AF; 
-                    color: white !important;
-                }
+                /* Tablas */
+                [data-testid="stDataFrame"], [data-testid="stTable"] { background-color: #1E293B !important; border-radius: 8px; border: 1px solid #334155 !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -128,16 +172,17 @@ if st.session_state.user is None:
     
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
         st.title("🔐 Acceso al Sistema")
         
         tab_login, tab_recuperar = st.tabs(["Ingresar", "Recuperar Contraseña"])
         
         with tab_login:
             with st.container(border=True):
-                email = st.text_input("Correo Electrónico")
-                password = st.text_input("Contraseña", type="password")
+                email = st.text_input("Correo Electrónico", placeholder="tu@email.com")
+                password = st.text_input("Contraseña", type="password", placeholder="••••••••")
                 if st.button("Ingresar", type="primary", use_container_width=True):
                     login(email, password)
                     
@@ -148,24 +193,25 @@ if st.session_state.user is None:
                 if st.button("Enviar enlace", use_container_width=True):
                     enviar_recuperacion(email_rec)
         
-        st.divider()
-        st.caption("Preferencia de visualización")
-        st.radio("Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True, label_visibility="collapsed")
+        st.markdown("<br>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            st.radio("Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True, label_visibility="collapsed")
         aplicar_tema()
     
     st.stop()
 
-# --- 5. APLICACIÓN PRINCIPAL (SI ESTÁ LOGUEADO) ---
+# --- 5. APLICACIÓN PRINCIPAL ---
 aplicar_tema()
 
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
 with st.sidebar:
-    st.write(f"👤 **{st.session_state.user.email}**")
-    st.caption(f"Rol: {rol}")
+    st.markdown(f"### 👤 {st.session_state.user.email}")
+    st.caption(f"Rol: **{rol}**")
     
     st.divider()
-    st.caption("Preferencia de visualización")
+    st.caption("Apariencia")
     st.radio("Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True, label_visibility="collapsed")
     aplicar_tema()
     
@@ -173,7 +219,7 @@ with st.sidebar:
     if st.button("Cerrar Sesión", use_container_width=True):
         logout()
 
-# --- 6. MENÚ DINÁMICO SEGÚN ROL ---
+# --- 6. MENÚ DINÁMICO ---
 paginas = [
     st.Page("pages/1_cotizador.py", title="Cotizador", icon="🚗"),
     st.Page("pages/3_crm.py", title="CRM", icon="📋"),
