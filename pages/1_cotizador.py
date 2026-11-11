@@ -91,10 +91,10 @@ def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
     if cuota:
         pdf.ln(5)
         pdf.cell(0, 10, f"Financiación a {plazo} meses:", ln=True)
-        pdf.cell(0, 10, f"Cuota inicial estimada: ${cuota:,.0f}", ln=True)
+        pdf.cell(0, 10, f"Cuota inicial estimada: ${cuota:,.0f} (No incluye seguro)", ln=True)
     pdf.ln(10)
     pdf.cell(0, 10, "Valores sujetos a la lista vigente y aprobación crediticia.", ln=True)
-    pdf.cell(0, 10, "No incluye seguro.", ln=True)
+    pdf.cell(0, 10, "No incluye seguro obligatorio.", ln=True)
     return bytes(pdf.output())
 
 def input_moneda(label, value, key, help=None):
@@ -367,8 +367,6 @@ if financiar:
                     with c_fact2:
                         st.markdown("**MONTO**")
                         st.write(f"{simbolo} {tot_abonar:,.0f}")
-                        # ACÁ CORREGIMOS: Mostramos el monto que el cliente entrega (Capital + Gasto)
-                        monto_entrega_cliente = res_final['anticipo_real'] + (mostrar_gasto if pr_actual != "Equilibrado (no poner extra)" else 0)
                         if pr_actual == "Equilibrado (no poner extra)":
                             st.write(f"- {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"- $ {ant_ars + usado_ars:,.0f}")
                         else:
@@ -392,8 +390,10 @@ if financiar:
                         st.markdown("**CUOTA MENSUAL:**")
                         if res_final["uva"]:
                             st.markdown(f"## $ {res_final['cuota']:,.0f} (UVA)")
+                            st.caption("(No incluye seguro obligatorio)")
                         else:
                             st.markdown(f"## $ {res_final['cuota']:,.0f}")
+                            st.caption("(No incluye seguro obligatorio)")
                         st.caption(f"Plazo: {res_final['plazo']} meses")
 
                     st.divider()
@@ -437,13 +437,13 @@ if financiar and dif > 0 and res_final:
     msg += f"• Plazo: {res_final['plazo']} meses\n"
     msg += f"• TNA: {res_final['tna']}%\n"
     if not res_final["uva"]:
-        msg += f"• Primera Cuota: $ {res_final['cuota']:,.0f}\n"
+        msg += f"• Primera Cuota: $ {res_final['cuota']:,.0f} (No incluye seguro obligatorio)\n"
         msg += f"• Última Cuota: $ {res_final['cuota_fin']:,.0f}\n"
     else:
         msg += f"• Cuota Inicial (UVA): $ {res_final['cuota']:,.0f} (sujeta a ajuste)\n"
     msg += f"• Dinero a poner al inicio (incluye gastos): ${res_final['poner_ars']:,.0f}\n"
 
-msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. No incluye seguro.*\n"
+msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. La cuota de financiación NO incluye el seguro obligatorio del automotor.*\n"
 msg += f"Quedo a tu disposición por cualquier duda. ¡Saludos!"
 
 st.text_area("Copiar y pegar en WhatsApp", msg, height=250, key="msg_final")
