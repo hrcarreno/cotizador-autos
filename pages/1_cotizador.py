@@ -74,7 +74,6 @@ class PDF(FPDF):
         self.set_font('Helvetica', 'B', 15)
         self.cell(0, 10, 'Presupuesto Cotización BYD', 0, 1, 'C')
         self.ln(5)
-
     def footer(self):
         self.set_y(-15)
         self.set_font('Helvetica', 'I', 8)
@@ -108,7 +107,6 @@ def input_moneda(label, value, key, help=None):
 try:
     leads_res = supabase.table("leads").select("id, nombre").execute()
     lista_leads = leads_res.data
-    
     if rol == "Usuario":
         leads_res = supabase.table("leads").select("id, nombre").eq("vendedor", usuario_actual).execute()
         lista_leads = leads_res.data
@@ -164,6 +162,7 @@ with col1:
     st.header("1. Vehículo")
     nombres = [m["nombre"] for m in MODELOS]
 
+    # Lógica para autoseleccionar el modelo de la IA
     if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
         mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
         for n in nombres:
@@ -205,6 +204,7 @@ with col1:
     tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
     if tc == 0: tc = 1
 
+    # Lógica para autocompletar el anticipo de la IA
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
@@ -276,7 +276,7 @@ if financiar:
                 opts.append(o)
 
         if not opts:
-            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales.")
+            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales. Es probable que el monto supere el límite de la línea o que el sistema no encuentre una opción con el modo seleccionado.")
         else:
             if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
             elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
