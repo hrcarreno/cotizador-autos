@@ -30,7 +30,7 @@ if "user" not in st.session_state or st.session_state.user is None:
 usuario_actual = st.session_state.user.email
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
-# --- CONFIGURACIÓN IA ---
+# --- CONFIGURACIÓN IA (GROQ) ---
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=API_KEY)
@@ -42,6 +42,31 @@ if "datos_ia" not in st.session_state:
     st.session_state.datos_ia = None
 if "vista_cliente" not in st.session_state:
     st.session_state.vista_cliente = False
+
+# --- FUNCIÓN DEL ASISTENTE IA ---
+def procesar_pedido_ia(prompt):
+    if not ia_activa: return None
+    system_prompt = """Sos un asistente de ventas de autos. Extraé datos y devolvé SOLO un JSON válido.
+    Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string)."""
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        texto = response.choices[0].message.content
+        json_limpio = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', texto, flags=re.DOTALL)
+        json_limpio = json_limpio[json_limpio.find('{'):json_limpio.rfind('}')+1]
+        datos = json.loads(json_limpio)
+        return {
+            "modelo": datos.get("modelo"),
+            "anticipo": datos.get("anticipo") or 0,
+            "usado": datos.get("usado") or 0,
+            "prioridad": datos.get("prioridad")
+        }
+    except Exception as e:
+        st.sidebar.error(f"Error de IA: {e}")
+        return None
 
 # --- GENERADOR DE PDF ---
 class PDF(FPDF):
@@ -79,29 +104,6 @@ def input_moneda(label, value, key, help=None):
     num = int(re.sub(r'[^\d]', '', txt)) if txt else 0
     return num
 
-def procesar_pedido_ia(prompt):
-    if not ia_activa: return None
-    system_prompt = """Sos un asistente de ventas de autos. Extraé datos y devolvé SOLO un JSON válido.
-    Claves: "modelo" (string), "anticipo" (entero en pesos), "usado" (entero en pesos), "prioridad" (string)."""
-    try:
-        response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
-            temperature=0.0
-        )
-        texto = response.choices[0].message.content
-        json_limpio = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', texto, flags=re.DOTALL)
-        json_limpio = json_limpio[json_limpio.find('{'):json_limpio.rfind('}')+1]
-        datos = json.loads(json_limpio)
-        return {
-            "modelo": datos.get("modelo"),
-            "anticipo": datos.get("anticipo") or 0,
-            "usado": datos.get("usado") or 0,
-            "prioridad": datos.get("prioridad")
-        }
-    except Exception:
-        return None
-
 # --- CARGAR LEADS DEL VENDEDOR ---
 try:
     leads_res = supabase.table("leads").select("id, nombre").execute()
@@ -113,9 +115,10 @@ try:
 except Exception:
     lista_leads = []
 
-# --- BARRA LATERAL ---
+# --- BARRA LATERAL (ASISTENTE) ---
 with st.sidebar:
     st.header("🤖 Asistente")
+    st.write("Contale qué pide el cliente.")
     prompt_ia = st.chat_input("Ej: Quiere una Song Pro, entrega 10 palos...")
     if prompt_ia and ia_activa:
         with st.spinner("Procesando..."):
@@ -205,7 +208,7 @@ with col1:
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
-    check_ant = st.checkbox("Entrego anticipo", value=False)
+    check_ant = st.checkbox("Entrego anticipo", value=(ia_anticipo > 0))
     if check_ant:
         c1, c2 = st.columns(2)
         ant_pesos = input_moneda("En pesos ($)", int(ia_anticipo), key="ant_pesos")
@@ -247,7 +250,6 @@ st.header("3 y 4. Financiación y Cierre")
 
 financiar = st.checkbox("Simular Financiación", value=False)
 
-# --- VALIDACIÓN AGREGADA PARA QUE NO QUEDE EN BLANCO ---
 if financiar:
     if dif <= 0:
         st.warning("No hay saldo para financiar (la diferencia es menor a cero). Revisá el anticipo o el usado.")
