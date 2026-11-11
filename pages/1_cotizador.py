@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import re
 import urllib.parse
+from datetime import date, timedelta
 from openai import OpenAI
 from supabase import create_client, Client
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
@@ -106,7 +107,6 @@ try:
     leads_res = supabase.table("leads").select("id, nombre").execute()
     lista_leads = leads_res.data
     
-    # Si es vendedor, filtramos solo sus leads
     if rol == "Usuario":
         leads_res = supabase.table("leads").select("id, nombre").eq("vendedor", usuario_actual).execute()
         lista_leads = leads_res.data
@@ -137,12 +137,10 @@ st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas se
 # --- SELECTOR DE LEAD ---
 if lista_leads:
     opciones_leads = {f"{l['nombre']} (ID: {l['id']})": l['id'] for l in lista_leads}
-    lead_seleccionado_nombre = st.selectbox("🔗 Vincular cotización a un cliente (opcional)", ["Ninguno"] + list(opciones_leads.keys()))
+    lead_seleccionado_nombre = st.selectbox("🔗 Vincular cotización a un cliente existente (opcional)", ["Ninguno"] + list(opciones_leads.keys()))
     lead_id = opciones_leads[lead_seleccionado_nombre] if lead_seleccionado_nombre != "Ninguno" else None
 else:
     lead_id = None
-    if rol == "Usuario":
-        st.caption("💡 No tenés leads cargados aún. Podés guardar la cotización sin vincular.")
 
 col1, col2 = st.columns([1.2, 1])
 
@@ -196,8 +194,12 @@ with col1:
     patenta = st.selectbox("Patentamiento", ["Concesionario", "Cliente"])
 
     st.header("2. Qué entrega el cliente")
+    
+    # --- CAMPOS DEL CLIENTE ---
     telefono_cliente = st.text_input("📱 Teléfono del Cliente (opcional)", placeholder="Ej: 1155554444")
-
+    nombre_cliente = st.text_input("👤 Nombre del Cliente (opcional)", placeholder="Ej: Juan Pérez")
+    
+    st.markdown("---")
     tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
     if tc == 0: tc = 1
 
@@ -414,9 +416,41 @@ st.text_area("Copiar y pegar en WhatsApp", msg, height=250, key="msg_final")
 st.markdown("### Acciones Rápidas")
 col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
 
+# --- NUEVA OPCIÓN DE GUARDADO CON CREACIÓN DE LEAD ---
+crear_lead_auto = False
+if telefono_cliente and lead_id is None:
+    crear_lead_auto = st.checkbox("📌 Crear Lead automáticamente si el teléfono no existe en el CRM", value=True)
+
 with col_acc1:
     if st.button("💾 Guardar en CRM", type="primary", use_container_width=True):
         try:
+            lead_id_final = lead_id
+            
+            # Si el vendedor puso un teléfono y tildó la casilla, creamos el lead
+            if telefono_cliente and crear_lead_auto:
+                busq_lead = supabase.table("leads").select("id").eq("telefono", telefono_cliente).execute()
+                
+                if busq_lead.data:
+                    lead_id_final = busq_lead.data[0]['id']
+                    st.info("El teléfono ya existía, se vinculó al lead existente.")
+                else:
+                    # Usamos el nombre ingresado o uno genérico si está vacío
+                    nombre_lead = nombre_cliente if nombre_cliente else f"Cliente {telefono_cliente}"
+                    
+                    nuevo_lead = supabase.table("leads").insert({
+                        "nombre": nombre_lead,
+                        "telefono": telefono_cliente,
+                        "origen": "Cotizador",
+                        "modelo_interes": mod_sel,
+                        "estado": "Cotizado",
+                        "fecha_proximo_contacto": str(date.today() + timedelta(days=1)),
+                        "notas": "Lead creado automáticamente desde el Cotizador.",
+                        "vendedor": usuario_actual
+                    }).execute()
+                    lead_id_final = nuevo_lead.data[0]['id']
+                    st.success("¡Lead creado automáticamente!")
+
+            # Guardamos la cotización
             cap_guardar = mostrar_capital if financiar else dif
             gasto_guardar = mostrar_gasto if financiar else 0
             cuota_guardar = res_final["cuota"] if financiar else 0
@@ -429,9 +463,10 @@ with col_acc1:
                 "cuota_inicial": cuota_guardar, "plazo_meses": plazo_guardar,
                 "linea": linea_guardar, "anticipo": ant_ars, "usado": usado_ars,
                 "vendedor": usuario_actual,
-                "lead_id": lead_id # <-- VINCULAMOS AL LEAD
+                "lead_id": lead_id_final
             }).execute()
-            st.success("¡Guardado!")
+            
+            st.success("¡Cotización guardada exitosamente!")
         except Exception as e:
             st.error(f"Error: {e}")
 
