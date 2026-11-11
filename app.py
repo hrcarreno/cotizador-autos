@@ -10,13 +10,6 @@ def init_connection() -> Client:
 
 supabase = init_connection()
 
-# --- CSS PARA OCULTAR EL MENÚ DE NAVEGACIÓN EN EL LOGIN ---
-st.markdown("""
-<style>
-    [data-testid="stSidebarNav"] {display: none;}
-</style>
-""", unsafe_allow_html=True)
-
 # --- LÓGICA DE AUTENTICACIÓN ---
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -43,6 +36,13 @@ def enviar_recuperacion(email):
 
 # --- PANTALLA DE LOGIN ---
 if st.session_state.user is None:
+    # Ocultamos el menú solo si no está logueado
+    st.markdown("""
+    <style>
+        [data-testid="stSidebarNav"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
+    
     st.title("🔐 Acceso al Sistema")
     
     tab_login, tab_recuperar = st.tabs(["Ingresar", "Recuperar Contraseña"])
@@ -64,9 +64,8 @@ if st.session_state.user is None:
     st.stop() # Evita que se cargue el resto de la app
 
 # --- SI ESTÁ LOGUEADO, MOSTRAMOS EL MENÚ ---
-rol = st.session_state.user.user_metadata.get("rol", "Usuario") # Por defecto "Usuario"
+rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
-# Agregamos un botón para cerrar sesión en la barra lateral
 with st.sidebar:
     st.write(f"👤 **{st.session_state.user.email}**")
     st.caption(f"Rol: {rol}")
@@ -79,7 +78,6 @@ paginas = [
     st.Page("pages/3_crm.py", title="CRM", icon="📋"),
 ]
 
-# Solo el admin puede ver la página de administración
 if rol == "Administrador":
     paginas.append(st.Page("pages/2_admin.py", title="Admin", icon="⚙️"))
 
