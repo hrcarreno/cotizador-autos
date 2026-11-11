@@ -36,14 +36,24 @@ def enviar_recuperacion(email):
 
 # --- PANTALLA DE LOGIN ---
 if st.session_state.user is None:
+    # OCULTAMOS LA BARRA LATERAL SOLO EN EL LOGIN
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="stSidebarNav"] { display: none !important; }
+            /* Centramos el contenido del login */
+            .block-container { padding-top: 5rem; max-width: 500px; }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title("🔐 Acceso al Sistema")
     
     tab_login, tab_recuperar = st.tabs(["Ingresar", "Recuperar Contraseña"])
     
     with tab_login:
         with st.container(border=True):
-            email = st.text_input("Correo Electrónico")
-            password = st.text_input("Contraseña", type="password")
+            email = st.text_input("Correo Electrónico", placeholder="tu@email.com")
+            password = st.text_input("Contraseña", type="password", placeholder="••••••••")
             if st.button("Ingresar", type="primary", use_container_width=True):
                 login(email, password)
                 
@@ -60,8 +70,8 @@ if st.session_state.user is None:
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
 with st.sidebar:
-    st.write(f"👤 **{st.session_state.user.email}**")
-    st.caption(f"Rol: {rol}")
+    st.markdown(f"### 👤 {st.session_state.user.email}")
+    st.caption(f"Rol: **{rol}**")
     
     st.divider()
     if st.button("Cerrar Sesión", use_container_width=True):
