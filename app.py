@@ -1,7 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# Forzamos que la barra lateral esté ABIERTA
 st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="expanded")
 
 # --- 1. GESTIÓN DE TEMA Y CSS GLOBAL ---
@@ -9,11 +8,34 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # SOLO aplicamos colores, NO ocultamos NADA (ni header, ni menu, ni flechitas)
+    # CSS MAESTRO: Colores + Arreglo del botón de la barra lateral
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             * { font-family: 'Inter', sans-serif !important; }
+            
+            /* --- ARREGLO DEL BOTÓN "keyboard_double..." --- */
+            /* Ocultamos el texto original */
+            [data-testid="stSidebarCollapseButton"] span { 
+                font-size: 0px !important; 
+                display: none !important; 
+            }
+            /* Le inyectamos una flecha limpia (SVG) */
+            [data-testid="stSidebarCollapseButton"]::after {
+                content: "◀" !important;
+                font-size: 18px !important;
+                color: #64748B !important;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: sans-serif !important;
+            }
+            /* Si la barra está colapsada (cerrada), la flecha apunta al otro lado */
+            [data-testid="collapsedControl"]::after {
+                content: "▶" !important;
+                font-size: 18px !important;
+                color: #64748B !important;
+            }
         </style>
     """, unsafe_allow_html=True)
 
