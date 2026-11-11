@@ -276,7 +276,7 @@ if financiar:
                 opts.append(o)
 
         if not opts:
-            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales. Es probable que el monto supere el límite de la línea o que el sistema no encuentre una opción con el modo seleccionado.")
+            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales.")
         else:
             if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
             elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
@@ -339,27 +339,33 @@ if financiar:
                         st.markdown("**CONCEPTO**")
                         st.write(f"Valor del Vehículo")
                         if ant_ars > 0 or usado_ars > 0:
-                            st.write(f"(-) Anticipo / Usado")
+                            st.write(f"(-) Anticipo / Usado (Parte que abona el cliente)")
                         st.write(f"Saldo a Financiar")
                         st.write(f"(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%)")
                     with c_fact2:
                         st.markdown("**MONTO**")
                         st.write(f"{simbolo} {tot_abonar:,.0f}")
                         if ant_ars > 0 or usado_ars > 0:
-                            st.write(f"- $ {ant_ars + usado_ars:,.0f}")
+                            # Mostramos el anticipo REAL (lo que fue al capital), no el total con gastos
+                            if pr_actual == "Equilibrado (no poner extra)":
+                                ant_real = (tot_ars - mostrar_capital) if not es_usd else ((tot_abonar - (mostrar_capital/tc)))
+                                st.write(f"- $ {ant_real:,.0f}" if not es_usd else f"- u$s {ant_real:,.0f}")
+                            else:
+                                st.write(f"- $ {ant_ars + usado_ars:,.0f}")
                         st.write(f"$ {mostrar_capital:,.0f}")
                         st.write(f"$ {mostrar_gasto:,.0f}")
                     st.divider()
                     
                     col_res1, col_res2 = st.columns(2)
                     with col_res1:
-                        st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
+                        st.markdown("**DEBE PONER AL INICIO (Anticipo + Gastos):**")
                         if pr_actual == "Equilibrado (no poner extra)":
                             st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
-                            st.caption("(El gasto ya está incluido en este monto)")
+                            st.caption("El cliente entrega exactamente este monto. Incluye el gasto de otorgamiento.")
                         else:
                             monto_inicial = res_final['poner_ars']
                             st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
+                            st.caption("Incluye el anticipo declarado + gastos del banco.")
                     with col_res2:
                         st.markdown("**CUOTA MENSUAL:**")
                         if res_final["uva"]:
