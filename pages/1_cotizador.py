@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import re
+import urllib.parse
 from openai import OpenAI
 from supabase import create_client, Client
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
@@ -36,19 +37,19 @@ if "vista_cliente" not in st.session_state:
 # --- GENERADOR DE PDF ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 15)
+        self.set_font('Helvetica', 'B', 15)
         self.cell(0, 10, 'Presupuesto Cotización BYD', 0, 1, 'C')
         self.ln(5)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
+        self.set_font('Helvetica', 'I', 8)
         self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
 
 def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("Helvetica", size=12)
     
     pdf.cell(0, 10, f"Vehículo: BYD {mod_sel}", ln=True)
     pdf.cell(0, 10, f"Precio de Lista: ${lista:,.0f}", ln=True)
@@ -65,7 +66,8 @@ def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
     pdf.cell(0, 10, "Valores sujetos a la lista vigente y aprobación crediticia.", ln=True)
     pdf.cell(0, 10, "No incluye seguro.", ln=True)
     
-    return pdf.output(dest='S').encode('latin-1')
+    # CORRECCIÓN DEL ERROR: Devolvemos bytes puros
+    return bytes(pdf.output())
 
 def input_moneda(label, value, key, help=None):
     val_str = f"{value:,.0f}".replace(",", ".") if value > 0 else ""
@@ -397,7 +399,6 @@ col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
 with col_acc1:
     if st.button("💾 Guardar en CRM", type="primary", use_container_width=True):
         try:
-            # Si no hay financiación, guardamos valores de contado
             cap_guardar = mostrar_capital if financiar else dif
             gasto_guardar = mostrar_gasto if financiar else 0
             cuota_guardar = res_final["cuota"] if financiar else 0
@@ -415,7 +416,6 @@ with col_acc1:
             st.error(f"Error: {e}")
 
 with col_acc2:
-    # El PDF se genera siempre (tenga o no financiación)
     cuota_pdf = res_final['cuota'] if (financiar and res_final) else None
     plazo_pdf = res_final['plazo'] if (financiar and res_final) else None
     pdf_bytes = generar_pdf(mod_sel, tot_abonar, bon, dm['precio'], cuota_pdf, plazo_pdf)
@@ -429,11 +429,8 @@ with col_acc2:
     )
 
 with col_acc3:
-    # Botón de WhatsApp
     tel_limpio = "".join(filter(str.isdigit, telefono_cliente))
     if tel_limpio:
-        # Codificamos el mensaje para la URL
-        import urllib.parse
         msg_encoded = urllib.parse.quote(msg)
         url_wp = f"https://wa.me/{tel_limpio}?text={msg_encoded}"
         st.link_button("🟢 Enviar WhatsApp", url_wp, use_container_width=True)
@@ -441,7 +438,6 @@ with col_acc3:
         st.button("🟢 Enviar WhatsApp", disabled=True, use_container_width=True, help="Cargá un teléfono para habilitar")
 
 with col_acc4:
-    # BOTÓN PARA COPIAR AL PORTAPAPELES (Usando JS)
     js_code = f"""
     <script>
     function copyToClipboard() {{
