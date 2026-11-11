@@ -263,25 +263,20 @@ if financiar:
                 test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
                 if not test_o["alcanza"]: continue
                 gasto_pct = test_o["gasto_pct"] / 100
+                
                 if pr == "Equilibrado (no poner extra)":
                     # Lógica correcta: El cliente tiene X dinero.
                     # Parte va al capital (Anticipo) y parte al Gasto.
-                    # (Capital_auto - Anticipo) * gasto_pct = Gasto
-                    # Anticipo + Gasto = Dinero_cliente
-                    # Resolviendo: Anticipo = (Dinero_cliente - Capital_auto * gasto_pct) / (1 - gasto_pct)
-                    
                     dinero_cliente = ant_ars + usado_ars
-                    capital_auto = tot_ars # Capital a financiar si no hubiera gasto
                     
-                    anticipo_teorico = (dinero_cliente - capital_auto * gasto_pct) / (1 - gasto_pct) if gasto_pct > 0 else dinero_cliente
+                    # El Capital a financiar es el que surge de restar el anticipo real
+                    # Formula: Anticipo = Dinero / (1 + Gasto)
+                    anticipo_teorico = dinero_cliente / (1 + gasto_pct) if (1 + gasto_pct) > 0 else dinero_cliente
+                    capital_financiado = tot_ars - anticipo_teorico
                     
-                    # Evaluamos con ese anticipo teórico
-                    dif_eq = capital_auto - anticipo_teorico
-                    o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_teorico, 0.0, True)
-                    
-                    # El "Debe Poner" real es el dinero que el cliente tiene
+                    # Evaluamos con ese capital
+                    o = evaluar_linea(l, r, capital_financiado, tot_ars, anticipo_teorico, 0.0, True)
                     o["mostrar_poner"] = dinero_cliente
-                    # El anticipo real que va al capital es el teórico
                     o["anticipo_real"] = anticipo_teorico
                 else:
                     o = test_o
@@ -314,7 +309,6 @@ if financiar:
             linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
             plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
             pr_actual = st.session_state.get("prioridad_elegida", pr)
-            anticipo_actual = st.session_state.get("anticipo_elegido", ant_ars + usado_ars)
             
             l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
             idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
@@ -332,20 +326,18 @@ if financiar:
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
             p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
             
-            # Recalculamos con el anticipo guardado (si es equilibrado)
             if pr_actual == "Equilibrado (no poner extra)":
-                o_test = evaluar_linea(l_sel, p_data, tot_ars - anticipo_actual, tot_ars, anticipo_actual, ex_c, qr)
-                gasto_pct = o_test["gasto_pct"] / 100
                 dinero_cliente = ant_ars + usado_ars
-                capital_auto = tot_ars
+                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                gasto_pct = o_test["gasto_pct"] / 100
                 
-                anticipo_final = (dinero_cliente - capital_auto * gasto_pct) / (1 - gasto_pct) if gasto_pct > 0 else dinero_cliente
-                dif_final = capital_auto - anticipo_final
+                anticipo_final = dinero_cliente / (1 + gasto_pct) if (1 + gasto_pct) > 0 else dinero_cliente
+                capital_final = tot_ars - anticipo_final
                 
-                res_final = evaluar_linea(l_sel, p_data, dif_final, tot_ars, anticipo_final, ex_c, qr)
+                res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, anticipo_final, ex_c, qr)
                 res_final["poner_ars"] = dinero_cliente
                 res_final["anticipo_real"] = anticipo_final
-                mostrar_capital = dif_final
+                mostrar_capital = capital_final
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
                 res_final["anticipo_real"] = ant_ars + usado_ars
