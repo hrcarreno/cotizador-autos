@@ -3,3 +3,5 @@ pandas
 openai
 supabase
 openpyxl
+fpdf2
+streamlit-js-eval
