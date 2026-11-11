@@ -8,54 +8,51 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # Ocultamos la barra superior de Streamlit y el menú de opciones (los 3 puntitos)
+    # Inyectamos el CSS para ocultar SOLO la barra superior y el menú de opciones
     st.markdown("""
         <style>
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
-            [data-testid="stToolbar"] {display: none !important;}
-            .stDeployButton {display: none !important;}
-            [data-testid="stStatusWidget"] {display: none !important;}
+            /* Ocultar barra superior de Streamlit */
+            header[data-testid="stHeader"] { display: none !important; }
+            [data-testid="stToolbar"] { display: none !important; }
+            #MainMenu { visibility: hidden !important; }
+            footer { visibility: hidden !important; }
+            .stDeployButton { display: none !important; }
+            
+            /* Importar fuente Inter */
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            * { font-family: 'Inter', sans-serif !important; }
         </style>
     """, unsafe_allow_html=True)
 
-    # Importamos la fuente Inter
-    st.markdown('<style>@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap\');</style>', unsafe_allow_html=True)
-    
+    # --- MODO CLARO PREMIUM ---
     if st.session_state.tema == "Claro":
         st.markdown("""
             <style>
-                /* --- TEMA CLARO PREMIUM --- */
-                :root { color-scheme: light; }
-                * { font-family: 'Inter', sans-serif !important; }
-                
-                /* Fondo principal */
+                /* Fondo general */
                 .stApp { background-color: #F3F4F6 !important; }
                 
-                /* Sidebar */
+                /* Barra lateral */
                 [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E5E7EB; }
                 [data-testid="stSidebar"] * { color: #111827 !important; }
                 
                 /* Textos generales */
                 h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #111827 !important; }
                 
-                /* Contenedores (Tarjetas) */
-                [data-testid="stVerticalBlockBorderWrapper"] { 
-                    background-color: #FFFFFF !important; 
-                    border: 1px solid #E5E7EB !important; 
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
-                    padding: 1.5rem !important;
-                }
-                
-                /* Inputs */
+                /* Inputs y Selects */
                 .stTextInput input, .stNumberInput input, .stTextArea textarea, 
                 .stSelectbox div[data-baseweb="select"] > div {
                     background-color: #FFFFFF !important; 
                     color: #111827 !important;
                     border: 1px solid #D1D5DB !important;
                     border-radius: 8px !important;
+                }
+                
+                /* Contenedores (Cards) */
+                [data-testid="stVerticalBlockBorderWrapper"] { 
+                    background-color: #FFFFFF !important; 
+                    border: 1px solid #E5E7EB !important; 
+                    border-radius: 12px !important;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
                 }
                 
                 /* Botones */
@@ -65,47 +62,37 @@ def aplicar_tema():
                     border-radius: 8px !important;
                     font-weight: 600 !important;
                 }
-                
-                /* Pestañas y Tablas */
-                .stTabs [data-baseweb="tab-list"] { background-color: #F3F4F6; border-radius: 10px; padding: 4px; }
-                .stTabs [data-baseweb="tab"] { color: #6B7280 !important; }
-                .stTabs [aria-selected="true"] { background-color: #FFFFFF !important; color: #111827 !important; }
-                [data-testid="stDataFrame"] { background-color: #FFFFFF !important; border: 1px solid #E5E7EB !important; }
             </style>
         """, unsafe_allow_html=True)
     else:
+        # --- MODO OSCURO PREMIUM ---
         st.markdown("""
             <style>
-                /* --- TEMA OSCURO PREMIUM (MIDNIGHT) --- */
-                :root { color-scheme: dark; }
-                * { font-family: 'Inter', sans-serif !important; }
-                
-                /* Fondo principal */
+                /* Fondo general */
                 .stApp { background-color: #0F172A !important; }
                 
-                /* Sidebar */
+                /* Barra lateral */
                 [data-testid="stSidebar"] { background-color: #1E293B !important; border-right: 1px solid #334155; }
                 [data-testid="stSidebar"] * { color: #F8FAFC !important; }
                 
                 /* Textos generales */
                 h1, h2, h3, h4, h5, h6, p, span, div, label, li { color: #F8FAFC !important; }
                 
-                /* Contenedores (Tarjetas) */
-                [data-testid="stVerticalBlockBorderWrapper"] { 
-                    background-color: #1E293B !important; 
-                    border: 1px solid #334155 !important; 
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
-                    padding: 1.5rem !important;
-                }
-                
-                /* Inputs */
+                /* Inputs y Selects */
                 .stTextInput input, .stNumberInput input, .stTextArea textarea, 
                 .stSelectbox div[data-baseweb="select"] > div {
                     background-color: #0F172A !important; 
                     color: #F8FAFC !important;
                     border: 1px solid #334155 !important;
                     border-radius: 8px !important;
+                }
+                
+                /* Contenedores (Cards) */
+                [data-testid="stVerticalBlockBorderWrapper"] { 
+                    background-color: #1E293B !important; 
+                    border: 1px solid #334155 !important; 
+                    border-radius: 12px !important;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
                 }
                 
                 /* Botones */
@@ -115,12 +102,6 @@ def aplicar_tema():
                     border-radius: 8px !important;
                     font-weight: 600 !important;
                 }
-                
-                /* Pestañas y Tablas */
-                .stTabs [data-baseweb="tab-list"] { background-color: #0F172A; border-radius: 10px; padding: 4px; }
-                .stTabs [data-baseweb="tab"] { color: #94A3B8 !important; }
-                .stTabs [aria-selected="true"] { background-color: #1E293B !important; color: #F8FAFC !important; }
-                [data-testid="stDataFrame"] { background-color: #1E293B !important; border: 1px solid #334155 !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -159,7 +140,7 @@ def enviar_recuperacion(email):
 if st.session_state.user is None:
     aplicar_tema() 
     
-    # Ocultamos el menú de navegación lateral en el login
+    # Ocultamos el menú de navegación de la barra lateral solo en el login
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
