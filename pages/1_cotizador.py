@@ -195,7 +195,6 @@ with col1:
 
     st.header("2. Qué entrega el cliente")
     
-    # --- CAMPOS DEL CLIENTE ---
     telefono_cliente = st.text_input("📱 Teléfono del Cliente (opcional)", placeholder="Ej: 1155554444")
     nombre_cliente = st.text_input("👤 Nombre del Cliente (opcional)", placeholder="Ej: Juan Pérez")
     
@@ -248,126 +247,132 @@ st.header("3 y 4. Financiación y Cierre")
 
 financiar = st.checkbox("Simular Financiación", value=False)
 
-if financiar and dif > 0:
-    l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
-    pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total", "Equilibrado (no poner extra)"])
-    
-    opts = []
-    for l in l_validas:
-        for r in l["r"]:
-            test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
-            if not test_o["alcanza"]: continue
-            gasto_pct = test_o["gasto_pct"] / 100
-            if pr == "Equilibrado (no poner extra)":
-                dinero_cliente = ant_ars + usado_ars
-                capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
-                o = evaluar_linea(l, r, capital_eq, tot_ars, 0, 0.0, True)
-                o["mostrar_poner"] = dinero_cliente
-            else:
-                o = test_o
-                o["mostrar_poner"] = test_o["poner_ars"]
-            opts.append(o)
-
-    if not opts:
-        st.error("Ninguna línea alcanza a financiar este monto con los parámetros actuales.")
+# --- VALIDACIÓN AGREGADA PARA QUE NO QUEDE EN BLANCO ---
+if financiar:
+    if dif <= 0:
+        st.warning("No hay saldo para financiar (la diferencia es menor a cero). Revisá el anticipo o el usado.")
+    elif tc == 1 and es_usd:
+         st.warning("Cargaste un dólar de $1. Por favor, ingresá el Dólar Agencia real para calcular la financiación.")
     else:
-        if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
-        elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
-        else: opts.sort(key=lambda x: x["costo_fin"])
+        l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
+        pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total", "Equilibrado (no poner extra)"])
         
-        st.subheader("Mejores opciones")
-        cols_opts = st.columns(3)
-        for i, o in enumerate(opts[:3]):
-            with cols_opts[i]:
-                with st.container(border=True):
-                    st.markdown(f"**{o['linea']['n']}**")
-                    st.markdown(f"### Cuota: $ {o['cuota']:,.0f}")
-                    st.caption(f"{o['plazo']} meses | Debe poner: ${o['mostrar_poner']:,.0f}")
-                    if st.button("Elegir", key=f"btn_{i}", use_container_width=True, type="primary"):
-                        st.session_state["linea_elegida"] = o["linea"]["n"]
-                        st.session_state["plazo_elegido"] = o["plazo"]
-                        st.session_state["prioridad_elegida"] = pr
+        opts = []
+        for l in l_validas:
+            for r in l["r"]:
+                test_o = evaluar_linea(l, r, dif, tot_ars, ant_ars, 0.0, True)
+                if not test_o["alcanza"]: continue
+                gasto_pct = test_o["gasto_pct"] / 100
+                if pr == "Equilibrado (no poner extra)":
+                    dinero_cliente = ant_ars + usado_ars
+                    capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
+                    o = evaluar_linea(l, r, capital_eq, tot_ars, 0, 0.0, True)
+                    o["mostrar_poner"] = dinero_cliente
+                else:
+                    o = test_o
+                    o["mostrar_poner"] = test_o["poner_ars"]
+                opts.append(o)
 
-        st.markdown("---")
-        linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
-        plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
-        pr_actual = st.session_state.get("prioridad_elegida", pr)
-        
-        l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
-        idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
-        
-        col_aj1, col_aj2, col_aj3 = st.columns(3)
-        with col_aj1:
-            linea_sel_nombre = st.selectbox("Línea elegida", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
-        with col_aj2:
-            plazo_sel = st.selectbox("Plazo", [r[0] for r in l_sel["r"]], index=idx_plazo)
-        with col_aj3:
-            ex_c = st.number_input("Gasto Adicional Concesionario (%)", min_value=0.0, step=0.1)
-        
-        qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra)", value=True)
-        
-        l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
-        p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
-        
-        if pr_actual == "Equilibrado (no poner extra)":
-            o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-            gasto_pct = o_test["gasto_pct"] / 100
-            dinero_cliente = ant_ars + usado_ars
-            capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
-            res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
-            res_final["poner_ars"] = dinero_cliente
-            mostrar_capital = capital_final
+        if not opts:
+            st.error("Ninguna línea de Santander alcanza a financiar este monto con los parámetros actuales.")
         else:
-            res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
-            mostrar_capital = dif
+            if pr == "Cuota más baja": opts.sort(key=lambda x: x["cuota"])
+            elif pr == "Poner menos al inicio" or pr == "Equilibrado (no poner extra)": opts.sort(key=lambda x: x["mostrar_poner"])
+            else: opts.sort(key=lambda x: x["costo_fin"])
             
-        if res_final:
-            mostrar_gasto = res_final["gasto_ars"]
-            mostrar_total_banco = mostrar_capital + mostrar_gasto
-            
-            st.markdown("### 📝 Resumen Final de la Operación")
-            with st.container(border=True):
-                c_fact1, c_fact2 = st.columns([2, 1])
-                with c_fact1:
-                    st.markdown("**CONCEPTO**")
-                    st.write(f"Valor del Vehículo")
-                    if ant_ars > 0 or usado_ars > 0:
-                        st.write(f"(-) Anticipo / Usado")
-                    st.write(f"Saldo a Financiar")
-                    st.write(f"(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%)")
-                with c_fact2:
-                    st.markdown("**MONTO**")
-                    st.write(f"{simbolo} {tot_abonar:,.0f}")
-                    if ant_ars > 0 or usado_ars > 0:
-                        st.write(f"- $ {ant_ars + usado_ars:,.0f}")
-                    st.write(f"$ {mostrar_capital:,.0f}")
-                    st.write(f"$ {mostrar_gasto:,.0f}")
-                st.divider()
-                
-                col_res1, col_res2 = st.columns(2)
-                with col_res1:
-                    st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
-                    if pr_actual == "Equilibrado (no poner extra)":
-                        st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
-                        st.caption("(El gasto ya está incluido en este monto)")
-                    else:
-                        monto_inicial = res_final['poner_ars']
-                        st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
-                with col_res2:
-                    st.markdown("**CUOTA MENSUAL:**")
-                    if res_final["uva"]:
-                        st.markdown(f"## $ {res_final['cuota']:,.0f} (UVA)")
-                    else:
-                        st.markdown(f"## $ {res_final['cuota']:,.0f}")
-                    st.caption(f"Plazo: {res_final['plazo']} meses")
+            st.subheader("Mejores opciones")
+            cols_opts = st.columns(3)
+            for i, o in enumerate(opts[:3]):
+                with cols_opts[i]:
+                    with st.container(border=True):
+                        st.markdown(f"**{o['linea']['n']}**")
+                        st.markdown(f"### Cuota: $ {o['cuota']:,.0f}")
+                        st.caption(f"{o['plazo']} meses | Debe poner: ${o['mostrar_poner']:,.0f}")
+                        if st.button("Elegir", key=f"btn_{i}", use_container_width=True, type="primary"):
+                            st.session_state["linea_elegida"] = o["linea"]["n"]
+                            st.session_state["plazo_elegido"] = o["plazo"]
+                            st.session_state["prioridad_elegida"] = pr
 
-                st.divider()
-                with st.expander("📋 Ver datos exactos para el Boleto y Sistema Santander"):
-                    st.write(f"**Capital a pedir:** $ {mostrar_capital:,.0f}")
-                    st.write(f"**Gasto de otorgamiento:** $ {mostrar_gasto:,.0f}")
-                    st.write(f"**TOTAL A SOLICITAR:** $ {mostrar_total_banco:,.0f}")
-                    if not res_final["uva"]:
-                        st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
+            st.markdown("---")
+            linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
+            plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
+            pr_actual = st.session_state.get("prioridad_elegida", pr)
+            
+            l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
+            idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
+            
+            col_aj1, col_aj2, col_aj3 = st.columns(3)
+            with col_aj1:
+                linea_sel_nombre = st.selectbox("Línea elegida", [l["n"] for l in l_validas], index=[l["n"] for l in l_validas].index(l_sel["n"]))
+            with col_aj2:
+                plazo_sel = st.selectbox("Plazo", [r[0] for r in l_sel["r"]], index=idx_plazo)
+            with col_aj3:
+                ex_c = st.number_input("Gasto Adicional Concesionario (%)", min_value=0.0, step=0.1)
+            
+            qr = st.checkbox("Cobrar el quebranto (desmarcar si BYD lo reintegra)", value=True)
+            
+            l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
+            p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
+            
+            if pr_actual == "Equilibrado (no poner extra)":
+                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                gasto_pct = o_test["gasto_pct"] / 100
+                dinero_cliente = ant_ars + usado_ars
+                capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
+                res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
+                res_final["poner_ars"] = dinero_cliente
+                mostrar_capital = capital_final
+            else:
+                res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                mostrar_capital = dif
+                
+            if res_final:
+                mostrar_gasto = res_final["gasto_ars"]
+                mostrar_total_banco = mostrar_capital + mostrar_gasto
+                
+                st.markdown("### 📝 Resumen Final de la Operación")
+                with st.container(border=True):
+                    c_fact1, c_fact2 = st.columns([2, 1])
+                    with c_fact1:
+                        st.markdown("**CONCEPTO**")
+                        st.write(f"Valor del Vehículo")
+                        if ant_ars > 0 or usado_ars > 0:
+                            st.write(f"(-) Anticipo / Usado")
+                        st.write(f"Saldo a Financiar")
+                        st.write(f"(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%)")
+                    with c_fact2:
+                        st.markdown("**MONTO**")
+                        st.write(f"{simbolo} {tot_abonar:,.0f}")
+                        if ant_ars > 0 or usado_ars > 0:
+                            st.write(f"- $ {ant_ars + usado_ars:,.0f}")
+                        st.write(f"$ {mostrar_capital:,.0f}")
+                        st.write(f"$ {mostrar_gasto:,.0f}")
+                    st.divider()
+                    
+                    col_res1, col_res2 = st.columns(2)
+                    with col_res1:
+                        st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
+                        if pr_actual == "Equilibrado (no poner extra)":
+                            st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
+                            st.caption("(El gasto ya está incluido en este monto)")
+                        else:
+                            monto_inicial = res_final['poner_ars']
+                            st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
+                    with col_res2:
+                        st.markdown("**CUOTA MENSUAL:**")
+                        if res_final["uva"]:
+                            st.markdown(f"## $ {res_final['cuota']:,.0f} (UVA)")
+                        else:
+                            st.markdown(f"## $ {res_final['cuota']:,.0f}")
+                        st.caption(f"Plazo: {res_final['plazo']} meses")
+
+                    st.divider()
+                    with st.expander("📋 Ver datos exactos para el Boleto y Sistema Santander"):
+                        st.write(f"**Capital a pedir:** $ {mostrar_capital:,.0f}")
+                        st.write(f"**Gasto de otorgamiento:** $ {mostrar_gasto:,.0f}")
+                        st.write(f"**TOTAL A SOLICITAR:** $ {mostrar_total_banco:,.0f}")
+                        if not res_final["uva"]:
+                            st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
 
 # ==========================================
 # ACCIONES Y MENSAJE
@@ -416,7 +421,6 @@ st.text_area("Copiar y pegar en WhatsApp", msg, height=250, key="msg_final")
 st.markdown("### Acciones Rápidas")
 col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
 
-# --- NUEVA OPCIÓN DE GUARDADO CON CREACIÓN DE LEAD ---
 crear_lead_auto = False
 if telefono_cliente and lead_id is None:
     crear_lead_auto = st.checkbox("📌 Crear Lead automáticamente si el teléfono no existe en el CRM", value=True)
@@ -426,7 +430,6 @@ with col_acc1:
         try:
             lead_id_final = lead_id
             
-            # Si el vendedor puso un teléfono y tildó la casilla, creamos el lead
             if telefono_cliente and crear_lead_auto:
                 busq_lead = supabase.table("leads").select("id").eq("telefono", telefono_cliente).execute()
                 
@@ -434,7 +437,6 @@ with col_acc1:
                     lead_id_final = busq_lead.data[0]['id']
                     st.info("El teléfono ya existía, se vinculó al lead existente.")
                 else:
-                    # Usamos el nombre ingresado o uno genérico si está vacío
                     nombre_lead = nombre_cliente if nombre_cliente else f"Cliente {telefono_cliente}"
                     
                     nuevo_lead = supabase.table("leads").insert({
@@ -450,7 +452,6 @@ with col_acc1:
                     lead_id_final = nuevo_lead.data[0]['id']
                     st.success("¡Lead creado automáticamente!")
 
-            # Guardamos la cotización
             cap_guardar = mostrar_capital if financiar else dif
             gasto_guardar = mostrar_gasto if financiar else 0
             cuota_guardar = res_final["cuota"] if financiar else 0
