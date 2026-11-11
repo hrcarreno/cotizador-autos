@@ -3,59 +3,91 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="collapsed")
 
-# --- 1. CONFIGURACIÓN DEL TEMA (MODO CLARO / OSCURO) ---
+# --- 1. GESTIÓN DE TEMA PROFESIONAL ---
 if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
     if st.session_state.tema == "Claro":
+        # INYECCIÓN QUIRÚRGICA DE CSS PARA MODO CLARO
         st.markdown("""
             <style>
-                /* Fondo general */
-                .stApp { background-color: #f8f9fa; color: #1b2430; }
-                [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e0e0e0; }
+                /* Variables base */
+                :root { color-scheme: light; }
+                
+                /* Fondo general de la app */
+                .stApp { background-color: #F8FAFC; }
+                
+                /* Sidebar */
+                [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
                 
                 /* Textos generales */
-                h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1b2430 !important; }
+                h1, h2, h3, h4, h5, h6, p, span, div, label { color: #1E293B !important; }
                 
-                /* Inputs, selects y textareas */
-                .stTextInput input, .stNumberInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] > div {
-                    background-color: #ffffff !important; 
-                    color: #1b2430 !important;
-                    border: 1px solid #cccccc !important;
+                /* Inputs, Selects, Textareas */
+                .stTextInput input, .stNumberInput input, .stTextArea textarea, 
+                .stSelectbox div[data-baseweb="select"] > div,
+                .stMultiSelect div[data-baseweb="select"] > div {
+                    background-color: #FFFFFF !important; 
+                    color: #1E293B !important;
+                    border: 1px solid #CBD5E1 !important;
+                    border-radius: 8px !important;
                 }
                 
                 /* Botones */
                 .stButton button { 
-                    background-color: #1f78b4 !important; 
-                    color: white !important; 
+                    background-color: #1E40AF !important; /* Azul profundo */
+                    color: #FFFFFF !important; 
                     border: none !important;
+                    border-radius: 8px !important;
+                    transition: all 0.2s ease;
                 }
-                .stButton button:hover { background-color: #155a8a !important; }
+                .stButton button:hover { background-color: #1D4ED8 !important; }
                 
-                /* Pestañas y Expanders */
-                .stTabs [data-baseweb="tab-list"] { background-color: #ffffff; }
-                .stTabs [data-baseweb="tab"] { color: #1b2430 !important; }
-                .streamlit-expanderHeader { color: #1b2430 !important; background-color: #ffffff !important; }
+                /* Pestañas */
+                .stTabs [data-baseweb="tab-list"] { background-color: #FFFFFF; border-radius: 8px; padding: 4px; }
+                .stTabs [data-baseweb="tab"] { color: #64748B !important; }
+                .stTabs [aria-selected="true"] { color: #1E40AF !important; font-weight: bold; }
                 
-                /* Tablas */
-                [data-testid="stTable"] table { background-color: #ffffff !important; color: #1b2430 !important; }
-                [data-testid="stDataFrame"] { color: #1b2430 !important; }
+                /* Expanders */
+                .streamlit-expanderHeader { 
+                    background-color: #FFFFFF !important; 
+                    color: #1E293B !important; 
+                    border: 1px solid #E2E8F0 !important;
+                    border-radius: 8px !important;
+                }
+                .streamlit-expanderContent { background-color: #FFFFFF !important; }
                 
-                /* Métricas */
-                [data-testid="stMetricValue"] { color: #1b2430 !important; }
-                [data-testid="stMetricLabel"] { color: #555555 !important; }
+                /* Tablas de datos */
+                [data-testid="stTable"], [data-testid="stDataFrame"] { 
+                    background-color: #FFFFFF !important; 
+                    color: #1E293B !important; 
+                    border: 1px solid #E2E8F0 !important;
+                }
                 
-                /* Contenedores con borde */
-                [data-testid="stVerticalBlockBorderWrapper"] { background-color: #ffffff; border-color: #e0e0e0 !important; }
-            </style>
-        """, unsafe_allow_html=True)
-    else:
-        # Modo oscuro (por defecto, no forzamos casi nada para no romper lo nativo)
-        st.markdown("""
-            <style>
-                .stApp { background-color: #0e1117; color: #fafafa; }
-                [data-testid="stSidebar"] { background-color: #262730; }
+                /* Métricas del CRM */
+                [data-testid="stMetricValue"] { color: #0F172A !important; }
+                [data-testid="stMetricLabel"] { color: #64748B !important; }
+                
+                /* Contenedores con borde (Cards) */
+                [data-testid="stVerticalBlockBorderWrapper"] { 
+                    background-color: #FFFFFF !important; 
+                    border: 1px solid #E2E8F0 !important; 
+                    border-radius: 12px !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+                }
+                
+                /* Ajuste para el botón de píldora (radio horizontal) */
+                div[role="radiogroup"] > label { 
+                    background-color: #E2E8F0; 
+                    padding: 8px 16px; 
+                    border-radius: 20px; 
+                    color: #1E293B !important;
+                }
+                div[role="radiogroup"] > label[data-checked="true"] {
+                    background-color: #1E40AF; 
+                    color: white !important;
+                }
             </style>
         """, unsafe_allow_html=True)
 
@@ -117,7 +149,8 @@ if st.session_state.user is None:
                     enviar_recuperacion(email_rec)
         
         st.divider()
-        st.radio("Preferencia de Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True)
+        st.caption("Preferencia de visualización")
+        st.radio("Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True, label_visibility="collapsed")
         aplicar_tema()
     
     st.stop()
@@ -132,7 +165,8 @@ with st.sidebar:
     st.caption(f"Rol: {rol}")
     
     st.divider()
-    st.radio("Tema de la App:", ["Oscuro", "Claro"], key="tema", horizontal=True)
+    st.caption("Preferencia de visualización")
+    st.radio("Tema:", ["Oscuro", "Claro"], key="tema", horizontal=True, label_visibility="collapsed")
     aplicar_tema()
     
     st.divider()
