@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="expanded")
@@ -8,34 +9,37 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # CSS MAESTRO: Colores + Arreglo del botón de la barra lateral
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             * { font-family: 'Inter', sans-serif !important; }
             
-            /* --- ARREGLO DEL BOTÓN "keyboard_double..." --- */
-            /* Ocultamos el texto original */
-            [data-testid="stSidebarCollapseButton"] span { 
-                font-size: 0px !important; 
-                display: none !important; 
-            }
-            /* Le inyectamos una flecha limpia (SVG) */
-            [data-testid="stSidebarCollapseButton"]::after {
-                content: "◀" !important;
-                font-size: 18px !important;
-                color: #64748B !important;
+            /* OCULTAMOS EL BOTÓN NATIVO DE STREAMLIT (que se rompe) */
+            [data-testid="stSidebarCollapseButton"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+            
+            /* BOTÓN FLOTANTE PERSONALIZADO */
+            #custom-toggle-btn {
+                position: fixed;
+                top: 50%;
+                left: 10px; /* Ajustar según barra lateral */
+                transform: translateY(-50%);
+                z-index: 9999;
+                background-color: #2563EB;
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+                cursor: pointer;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                transition: all 0.2s;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-family: sans-serif !important;
             }
-            /* Si la barra está colapsada (cerrada), la flecha apunta al otro lado */
-            [data-testid="collapsedControl"]::after {
-                content: "▶" !important;
-                font-size: 18px !important;
-                color: #64748B !important;
-            }
+            #custom-toggle-btn:hover { background-color: #1D4ED8; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -72,14 +76,40 @@ def aplicar_tema():
             </style>
         """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN SUPABASE ---
+# --- 2. INYECCIÓN DEL BOTÓN FLOTANTE ---
+# Este script crea un botón flotante y lo conecta al botón nativo de Streamlit
+def inyectar_boton_flotante():
+    components.html(
+        """
+        <script>
+            // Esperamos a que cargue el DOM
+            setTimeout(function() {
+                const btn = window.parent.document.createElement('button');
+                btn.id = 'custom-toggle-btn';
+                btn.innerHTML = '❮'; // Flecha izquierda por defecto
+                
+                // Buscamos el botón nativo de Streamlit para hacerle clic
+                const nativeBtn = window.parent.document.querySelector('[data-testid="stSidebarCollapseButton"]') || 
+                                  window.parent.document.querySelector('[data-testid="collapsedControl"]');
+                
+                if (nativeBtn) {
+                    btn.onclick = function() { nativeBtn.click(); };
+                    window.parent.document.body.appendChild(btn);
+                }
+            }, 1000);
+        </script>
+        """,
+        height=0,
+    )
+
+# --- 3. CONEXIÓN SUPABASE ---
 @st.cache_resource
 def init_connection() -> Client:
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = init_connection()
 
-# --- 3. LÓGICA DE AUTENTICACIÓN ---
+# --- 4. LÓGICA DE AUTENTICACIÓN ---
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -103,7 +133,7 @@ def enviar_recuperacion(email):
     except Exception as e:
         st.error(f"Error al enviar el correo: {e}")
 
-# --- 4. PANTALLA DE LOGIN ---
+# --- 5. PANTALLA DE LOGIN ---
 if st.session_state.user is None:
     aplicar_tema() 
     
@@ -136,8 +166,9 @@ if st.session_state.user is None:
     
     st.stop()
 
-# --- 5. APLICACIÓN PRINCIPAL ---
+# --- 6. APLICACIÓN PRINCIPAL ---
 aplicar_tema()
+inyectar_boton_flotante() # Inyectamos el botón aquí
 
 rol = st.session_state.user.user_metadata.get("rol", "Usuario")
 
@@ -154,7 +185,7 @@ with st.sidebar:
     if st.button("Cerrar Sesión", use_container_width=True):
         logout()
 
-# --- 6. MENÚ DINÁMICO ---
+# --- 7. MENÚ DINÁMICO ---
 paginas = [
     st.Page("pages/1_cotizador.py", title="Cotizador", icon="🚗"),
     st.Page("pages/3_crm.py", title="CRM", icon="📋"),
