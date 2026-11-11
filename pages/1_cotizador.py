@@ -66,7 +66,6 @@ def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
     pdf.cell(0, 10, "Valores sujetos a la lista vigente y aprobación crediticia.", ln=True)
     pdf.cell(0, 10, "No incluye seguro.", ln=True)
     
-    # CORRECCIÓN DEL ERROR: Devolvemos bytes puros
     return bytes(pdf.output())
 
 def input_moneda(label, value, key, help=None):
@@ -224,7 +223,6 @@ st.header("3 y 4. Financiación y Cierre")
 
 financiar = st.checkbox("Simular Financiación", value=False)
 
-# Lógica de financiación (solo si se tilda)
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
     pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total", "Equilibrado (no poner extra)"])
@@ -347,12 +345,11 @@ if financiar and dif > 0:
                         st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
 
 # ==========================================
-# ACCIONES Y MENSAJE (SIEMPRE VISIBLES)
+# ACCIONES Y MENSAJE
 # ==========================================
 st.markdown("---")
 st.header("5. Acciones y Mensaje para el Cliente")
 
-# Armamos el mensaje
 msg = f"¡Hola! 👋 Te paso el detalle de la cotización por tu *BYD {mod_sel}*:\n\n"
 msg += f"📋 *DETALLE DEL VEHÍCULO:*\n"
 msg += f"• Precio de Lista: {simbolo} {dm['precio']:,.0f}\n"
@@ -389,10 +386,8 @@ if financiar and dif > 0 and res_final:
 msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. No incluye seguro.*\n"
 msg += f"Quedo a tu disposición por cualquier duda. ¡Saludos!"
 
-# Mostramos el mensaje
 st.text_area("Copiar y pegar en WhatsApp", msg, height=250, key="msg_final")
 
-# --- BOTONES DE ACCIÓN ---
 st.markdown("### Acciones Rápidas")
 col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
 
@@ -405,11 +400,15 @@ with col_acc1:
             plazo_guardar = res_final["plazo"] if financiar else 0
             linea_guardar = res_final["linea"]["n"] if financiar else "Contado"
             
+            # Capturamos el email del vendedor logueado
+            vendedor_actual = st.session_state.user.email if "user" in st.session_state and st.session_state.user else "Desconocido"
+            
             supabase.table("cotizaciones").insert({
                 "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
                 "capital_financiado": cap_guardar, "gasto_otorgamiento": gasto_guardar,
                 "cuota_inicial": cuota_guardar, "plazo_meses": plazo_guardar,
-                "linea": linea_guardar, "anticipo": ant_ars, "usado": usado_ars
+                "linea": linea_guardar, "anticipo": ant_ars, "usado": usado_ars,
+                "vendedor": vendedor_actual # <-- GUARDAMOS EL VENDEDOR
             }).execute()
             st.success("¡Guardado!")
         except Exception as e:
