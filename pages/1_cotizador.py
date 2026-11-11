@@ -4,6 +4,8 @@ import re
 from openai import OpenAI
 from supabase import create_client, Client
 from cotizador import MODELOS, LINEAS, calcular_frances, evaluar_linea, generar_codigo_disfrazado
+from fpdf import FPDF
+from streamlit_js_eval import streamlit_js_eval
 
 st.set_page_config(page_title="Cotizador BYD v2", layout="wide")
 
@@ -30,6 +32,40 @@ if "datos_ia" not in st.session_state:
     st.session_state.datos_ia = None
 if "vista_cliente" not in st.session_state:
     st.session_state.vista_cliente = False
+
+# --- GENERADOR DE PDF ---
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 15)
+        self.cell(0, 10, 'Presupuesto Cotización BYD', 0, 1, 'C')
+        self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+
+def generar_pdf(mod_sel, total, bon, lista, cuota=None, plazo=None):
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    pdf.cell(0, 10, f"Vehículo: BYD {mod_sel}", ln=True)
+    pdf.cell(0, 10, f"Precio de Lista: ${lista:,.0f}", ln=True)
+    if bon > 0:
+        pdf.cell(0, 10, f"Bonificación: -${bon:,.0f}", ln=True)
+    pdf.cell(0, 10, f"TOTAL A ABONAR: ${total:,.0f}", ln=True)
+    
+    if cuota:
+        pdf.ln(5)
+        pdf.cell(0, 10, f"Financiación a {plazo} meses:", ln=True)
+        pdf.cell(0, 10, f"Cuota inicial estimada: ${cuota:,.0f}", ln=True)
+    
+    pdf.ln(10)
+    pdf.cell(0, 10, "Valores sujetos a la lista vigente y aprobación crediticia.", ln=True)
+    pdf.cell(0, 10, "No incluye seguro.", ln=True)
+    
+    return pdf.output(dest='S').encode('latin-1')
 
 def input_moneda(label, value, key, help=None):
     val_str = f"{value:,.0f}".replace(",", ".") if value > 0 else ""
@@ -72,6 +108,14 @@ with st.sidebar:
                 st.session_state.datos_ia = datos
                 st.success("¡Datos cargados!")
                 st.rerun()
+    
+    st.divider()
+    st.caption("Estado de Conexión")
+    # Chequeo simple de internet
+    if streamlit_js_eval(js_expressions="navigator.onLine"):
+        st.success("🟢 Online - Guardado automático activo")
+    else:
+        st.warning("🔴 Offline - Guardá el PDF manualmente")
 
 st.title("Cotizador BYD 0 km")
 st.toggle("Vista cliente", key="vista_cliente", help="Oculta las herramientas secretas del vendedor.")
@@ -148,7 +192,7 @@ with col1:
         moneda_usado = c4.selectbox("Moneda", ["Pesos", "Dólares"])
         usado_ars = tas * tc if moneda_usado == "Dólares" else tas
 
-# --- CÁLCULOS BASE (SIEMPRE SE EJECUTAN) ---
+# --- CÁLCULOS BASE ---
 precio_base = dm["precio"] - bon
 pat_monto = dm["pat"] if patenta == "Concesionario" else 0
 tot_abonar = precio_base + dm["fyf"] + pat_monto
@@ -176,7 +220,6 @@ st.header("3 y 4. Financiación y Cierre")
 
 financiar = st.checkbox("Simular Financiación", value=False)
 
-# Lógica de financiación (solo si se tilda)
 if financiar and dif > 0:
     l_validas = [l for l in LINEAS if "aplica" not in l or any(app in dm["nombre"] for app in l["aplica"])]
     pr = st.selectbox("Qué prioriza el cliente:", ["Cuota más baja", "Poner menos al inicio", "Menor costo total", "Equilibrado (no poner extra)"])
@@ -298,19 +341,38 @@ if financiar and dif > 0:
                     if not res_final["uva"]:
                         st.write(f"**Última Cuota:** $ {res_final['cuota_fin']:,.0f}")
 
-            if st.button("💾 Guardar Cotización en CRM", type="primary", use_container_width=True):
-                try:
-                    supabase.table("cotizaciones").insert({
-                        "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
-                        "capital_financiado": mostrar_capital, "gasto_otorgamiento": mostrar_gasto,
-                        "cuota_inicial": res_final["cuota"], "plazo_meses": res_final["plazo"],
-                        "linea": res_final["linea"]["n"], "anticipo": ant_ars, "usado": usado_ars
-                    }).execute()
-                    st.success("¡Cotización guardada!")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+            # --- BOTONES DE ACCIÓN (GUARDAR, WHATSAPP, PDF) ---
+            st.markdown("### Acciones")
+            col_acc1, col_acc2, col_acc3 = st.columns(3)
+            
+            with col_acc1:
+                if st.button("💾 Guardar en CRM", type="primary", use_container_width=True):
+                    try:
+                        supabase.table("cotizaciones").insert({
+                            "modelo": mod_sel, "precio_total": tot_abonar, "moneda": dm["moneda"],
+                            "capital_financiado": mostrar_capital, "gasto_otorgamiento": mostrar_gasto,
+                            "cuota_inicial": res_final["cuota"], "plazo_meses": res_final["plazo"],
+                            "linea": res_final["linea"]["n"], "anticipo": ant_ars, "usado": usado_ars
+                        }).execute()
+                        st.success("¡Guardado!")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            
+            with col_acc2:
+                pdf_bytes = generar_pdf(mod_sel, tot_abonar, bon, dm['precio'], res_final['cuota'], res_final['plazo'])
+                st.download_button(
+                    label="📄 Descargar PDF",
+                    data=pdf_bytes,
+                    file_name=f"Cotizacion_BYD_{mod_sel}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            
+            with col_acc3:
+                # Botón de WhatsApp (necesita el número del cliente, lo dejamos genérico)
+                st.link_button("🟢 Enviar WhatsApp", "https://wa.me/", use_container_width=True)
 
-# --- PASO 5: MENSAJE PROFESIONAL (AHORA SIEMPRE SE MUESTRA) ---
+# --- PASO 5: MENSAJE PROFESIONAL CON COPIA ---
 st.markdown("---")
 st.header("5. Mensaje para el cliente")
 
@@ -350,4 +412,22 @@ if financiar and dif > 0 and res_final:
 msg += f"\n*Los valores están sujetos a la lista vigente y aprobación crediticia. No incluye seguro.*\n"
 msg += f"Quedo a tu disposición por cualquier duda. ¡Saludos!"
 
-st.text_area("Copiar y pegar en WhatsApp", msg, height=250)
+# Mostramos el mensaje en un textarea
+st.text_area("Copiar y pegar en WhatsApp", msg, height=250, key="msg_final")
+
+# BOTÓN PARA COPIAR AL PORTAPAPELES
+# Usamos JS para copiar el contenido del textarea
+js_code = f"""
+<script>
+function copyToClipboard() {{
+    var text = `{msg.replace('`', '\\`')}`;
+    navigator.clipboard.writeText(text).then(function() {{
+        alert('¡Mensaje copiado al portapapeles!');
+    }}, function(err) {{
+        alert('Error al copiar: ', err);
+    }});
+}}
+</script>
+<button onclick="copyToClipboard()" style="background-color: #1f78b4; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold;">📋 Copiar Mensaje al Portapapeles</button>
+"""
+st.components.v1.html(js_code, height=60)
