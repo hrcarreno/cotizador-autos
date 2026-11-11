@@ -162,7 +162,6 @@ with col1:
     st.header("1. Vehículo")
     nombres = [m["nombre"] for m in MODELOS]
 
-    # Lógica para autoseleccionar el modelo de la IA
     if st.session_state.datos_ia and st.session_state.datos_ia.get("modelo"):
         mod_ia = str(st.session_state.datos_ia["modelo"]).lower()
         for n in nombres:
@@ -204,7 +203,6 @@ with col1:
     tc = input_moneda("Dólar agencia ($)", 0, key="tc_input")
     if tc == 0: tc = 1
 
-    # Lógica para autocompletar el anticipo de la IA
     ia_anticipo = st.session_state.datos_ia.get("anticipo", 0) if st.session_state.datos_ia else 0
     ia_usado = st.session_state.datos_ia.get("usado", 0) if st.session_state.datos_ia else 0
 
@@ -266,13 +264,29 @@ if financiar:
                 if not test_o["alcanza"]: continue
                 gasto_pct = test_o["gasto_pct"] / 100
                 if pr == "Equilibrado (no poner extra)":
+                    # Lógica correcta: El cliente tiene X dinero.
+                    # Parte va al capital (Anticipo) y parte al Gasto.
+                    # (Capital_auto - Anticipo) * gasto_pct = Gasto
+                    # Anticipo + Gasto = Dinero_cliente
+                    # Resolviendo: Anticipo = (Dinero_cliente - Capital_auto * gasto_pct) / (1 - gasto_pct)
+                    
                     dinero_cliente = ant_ars + usado_ars
-                    capital_eq = tot_ars - (dinero_cliente / (1 + gasto_pct))
-                    o = evaluar_linea(l, r, capital_eq, tot_ars, 0, 0.0, True)
+                    capital_auto = tot_ars # Capital a financiar si no hubiera gasto
+                    
+                    anticipo_teorico = (dinero_cliente - capital_auto * gasto_pct) / (1 - gasto_pct) if gasto_pct > 0 else dinero_cliente
+                    
+                    # Evaluamos con ese anticipo teórico
+                    dif_eq = capital_auto - anticipo_teorico
+                    o = evaluar_linea(l, r, dif_eq, tot_ars, anticipo_teorico, 0.0, True)
+                    
+                    # El "Debe Poner" real es el dinero que el cliente tiene
                     o["mostrar_poner"] = dinero_cliente
+                    # El anticipo real que va al capital es el teórico
+                    o["anticipo_real"] = anticipo_teorico
                 else:
                     o = test_o
                     o["mostrar_poner"] = test_o["poner_ars"]
+                    o["anticipo_real"] = ant_ars + usado_ars
                 opts.append(o)
 
         if not opts:
@@ -294,11 +308,13 @@ if financiar:
                             st.session_state["linea_elegida"] = o["linea"]["n"]
                             st.session_state["plazo_elegido"] = o["plazo"]
                             st.session_state["prioridad_elegida"] = pr
+                            st.session_state["anticipo_elegido"] = o["anticipo_real"]
 
             st.markdown("---")
             linea_actual = st.session_state.get("linea_elegida", l_validas[0]["n"])
             plazo_actual = st.session_state.get("plazo_elegido", l_validas[0]["r"][0][0])
             pr_actual = st.session_state.get("prioridad_elegida", pr)
+            anticipo_actual = st.session_state.get("anticipo_elegido", ant_ars + usado_ars)
             
             l_sel = next((l for l in l_validas if l["n"] == linea_actual), l_validas[0])
             idx_plazo = next((i for i, r in enumerate(l_sel["r"]) if r[0] == plazo_actual), 0)
@@ -316,16 +332,23 @@ if financiar:
             l_sel = next(l for l in l_validas if l["n"] == linea_sel_nombre)
             p_data = next((r for r in l_sel["r"] if r[0] == plazo_sel), l_sel["r"][0])
             
+            # Recalculamos con el anticipo guardado (si es equilibrado)
             if pr_actual == "Equilibrado (no poner extra)":
-                o_test = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                o_test = evaluar_linea(l_sel, p_data, tot_ars - anticipo_actual, tot_ars, anticipo_actual, ex_c, qr)
                 gasto_pct = o_test["gasto_pct"] / 100
                 dinero_cliente = ant_ars + usado_ars
-                capital_final = tot_ars - (dinero_cliente / (1 + gasto_pct))
-                res_final = evaluar_linea(l_sel, p_data, capital_final, tot_ars, 0, ex_c, qr)
+                capital_auto = tot_ars
+                
+                anticipo_final = (dinero_cliente - capital_auto * gasto_pct) / (1 - gasto_pct) if gasto_pct > 0 else dinero_cliente
+                dif_final = capital_auto - anticipo_final
+                
+                res_final = evaluar_linea(l_sel, p_data, dif_final, tot_ars, anticipo_final, ex_c, qr)
                 res_final["poner_ars"] = dinero_cliente
-                mostrar_capital = capital_final
+                res_final["anticipo_real"] = anticipo_final
+                mostrar_capital = dif_final
             else:
                 res_final = evaluar_linea(l_sel, p_data, dif, tot_ars, ant_ars, ex_c, qr)
+                res_final["anticipo_real"] = ant_ars + usado_ars
                 mostrar_capital = dif
                 
             if res_final:
@@ -336,22 +359,16 @@ if financiar:
                 with st.container(border=True):
                     c_fact1, c_fact2 = st.columns([2, 1])
                     
-                    # Calculamos el anticipo REAL que va al capital
-                    if pr_actual == "Equilibrado (no poner extra)":
-                        anticipo_visual = (ant_ars + usado_ars) / tc if es_usd else (ant_ars + usado_ars)
-                    else:
-                        anticipo_visual = (ant_ars + usado_ars) / tc if es_usd else (ant_ars + usado_ars)
-                    
                     with c_fact1:
                         st.markdown("**CONCEPTO**")
                         st.write(f"Valor del Vehículo (con FyF y Patentamiento)")
                         st.write(f"**(-) Lo que entrega el cliente (Anticipo / Usado)**")
-                        st.write(f"Saldo a Financiar")
-                        st.write(f"**(+) Gasto de Otorgamiento (Va en el préstamo)**")
+                        st.write(f"Saldo a Financiar (Capital)")
+                        st.write(f"**(+) Gasto de Otorgamiento (Costo del Banco)**")
                     with c_fact2:
                         st.markdown("**MONTO**")
                         st.write(f"{simbolo} {tot_abonar:,.0f}")
-                        st.write(f"- {simbolo} {anticipo_visual:,.0f}")
+                        st.write(f"- {simbolo} {res_final['anticipo_real']/tc:,.0f}" if es_usd else f"- $ {res_final['anticipo_real']:,.0f}")
                         st.write(f"$ {mostrar_capital:,.0f}")
                         st.write(f"$ {mostrar_gasto:,.0f}")
                     
@@ -362,7 +379,7 @@ if financiar:
                         st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
                         if pr_actual == "Equilibrado (no poner extra)":
                             st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
-                            st.caption("El cliente entrega exactamente este monto. El gasto ya está incluido en la financiación.")
+                            st.caption("El cliente entrega exactamente este monto (Anticipo + Gastos).")
                         else:
                             monto_inicial = res_final['poner_ars']
                             st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
