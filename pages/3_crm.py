@@ -27,10 +27,9 @@ es_admin_o_super = rol in ["Administrador", "Supervisor"]
 
 st.title("📋 CRM Inteligente")
 
-# --- OBTENER LISTA DE VENDEDORES PARA ASIGNAR ---
+# --- OBTENER LISTA DE VENDEDORES ---
 try:
-    # Buscamos todos los perfiles para el selector de asignación
-    perfiles_res = supabase.table("perfiles").select("email, nombre_completo").execute()
+    perfiles_res = supabase.table("perfiles").select("email").execute()
     lista_vendedores = [p["email"] for p in perfiles_res.data]
 except:
     lista_vendedores = []
@@ -58,6 +57,7 @@ with tab1:
     else:
         df = pd.DataFrame(leads_raw)
         
+        # FILTRO BASE POR ROL (Vendedor solo ve lo suyo)
         if not es_admin_o_super:
             df = df[df['vendedor'] == usuario_actual]
             if df.empty:
@@ -81,10 +81,34 @@ with tab1:
 
         st.divider()
 
-        # BÚSQUEDA Y NUEVO LEAD
+        # --- PANEL DE FILTROS AVANZADOS (SOLO ADMIN/SUPER) ---
+        if es_admin_o_super:
+            with st.expander("🔍 Filtros Avanzados de Búsqueda", expanded=True):
+                f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+                
+                with f_col1:
+                    filtro_vend = st.multiselect("Vendedor", lista_vendedores, default=[])
+                with f_col2:
+                    filtro_mod = st.multiselect("Modelo", df['modelo_interes'].unique(), default=[])
+                with f_col3:
+                    filtro_est = st.multiselect("Estado", df['estado'].unique(), default=[])
+                with f_col4:
+                    fecha_desde = st.date_input("Próximo contacto desde", value=None)
+
+                # Aplicamos los filtros
+                if filtro_vend:
+                    df = df[df['vendedor'].isin(filtro_vend)]
+                if filtro_mod:
+                    df = df[df['modelo_interes'].isin(filtro_mod)]
+                if filtro_est:
+                    df = df[df['estado'].isin(filtro_est)]
+                if fecha_desde:
+                    df = df[df['fecha_proximo_contacto'] >= fecha_desde]
+
+        # BÚSQUEDA GENERAL Y NUEVO LEAD
         col_search, col_btn = st.columns([4, 1])
         with col_search:
-            busqueda = st.text_input("🔍 Buscar cliente o teléfono...", "").lower()
+            busqueda = st.text_input("🔍 Buscar por nombre o teléfono...", "").lower()
         with col_btn:
             st.write("")
             st.write("")
@@ -105,16 +129,17 @@ with tab1:
                         }).execute()
                         st.rerun()
 
+        # Búsqueda de texto
         if busqueda:
             df = df[df['nombre'].str.lower().str.contains(busqueda, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
             if df.empty:
                 st.warning("No se encontraron coincidencias.")
                 st.stop()
 
-        st.markdown("### 📋 Gestión de Clientes")
+        st.markdown(f"### 📋 Gestión de Clientes ({len(df)} resultados)")
         
         if len(df) > 20:
-            st.caption(f"Mostrando los primeros 20 de {len(df)} clientes. Usá el buscador para filtrar.")
+            st.caption(f"Mostrando los primeros 20 de {len(df)} clientes. Usá los filtros para refinar.")
             df = df.head(20)
 
         for _, row in df.iterrows():
@@ -195,14 +220,12 @@ if tab2 is not None:
                 cols = ["Seleccionar"] + [c for c in df_asig.columns if c != "Seleccionar"]
                 df_asig = df_asig[cols]
 
-                # Selector del vendedor destino
                 if lista_vendedores:
                     vendedor_destino = st.selectbox("Asignar los seleccionados a:", lista_vendedores)
                 else:
-                    st.warning("No hay vendedores registrados en la base de datos.")
+                    st.warning("No hay vendedores registrados.")
                     vendedor_destino = None
 
-                # Botones de selección rápida
                 col_btn1, col_btn2, _ = st.columns([1, 1, 2])
                 if col_btn1.button("✅ Seleccionar Todo", use_container_width=True, key="asig_sel_all"):
                     st.session_state.asig_select_all = True
