@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# CAMBIO CLAVE 1: Forzamos que la barra lateral arranque ABIERTA
+# Forzamos que la barra lateral esté ABIERTA
 st.set_page_config(page_title="Cotizador BYD Inteligente", layout="wide", initial_sidebar_state="expanded")
 
 # --- 1. GESTIÓN DE TEMA Y CSS GLOBAL ---
@@ -9,15 +9,18 @@ if "tema" not in st.session_state:
     st.session_state.tema = "Oscuro"
 
 def aplicar_tema():
-    # Inyectamos el CSS
+    # CSS para ocultar SOLO los botones de Streamlit, no la flechita de la barra
     st.markdown("""
         <style>
-            /* Ocultar SOLO la barra superior de Streamlit (Deploy, menu) */
-            header[data-testid="stHeader"] { display: none !important; }
-            [data-testid="stToolbar"] { display: none !important; }
+            /* Ocultamos el menú de opciones (3 puntitos) y el botón de Deploy */
             #MainMenu { visibility: hidden !important; }
-            footer { visibility: hidden !important; }
+            [data-testid="stToolbar"] { display: none !important; }
             .stDeployButton { display: none !important; }
+            footer { visibility: hidden !important; }
+            
+            /* Ocultamos el texto "keyboard_double_arrow" que aparece en versiones nuevas */
+            [data-testid="stSidebarCollapseButton"] span { font-size: 0; }
+            [data-testid="stSidebarCollapseButton"]::after { content: "◀"; font-size: 14px; }
             
             /* Importar fuente Inter */
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -95,7 +98,7 @@ def enviar_recuperacion(email):
 if st.session_state.user is None:
     aplicar_tema() 
     
-    # CAMBIO CLAVE 2: Ocultamos SOLO el menú de navegación, no la barra entera
+    # Ocultamos SOLO el menú de navegación en el login
     st.markdown("<style>[data-testid='stSidebarNav'] {display: none;}</style>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
