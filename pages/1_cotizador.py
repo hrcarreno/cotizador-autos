@@ -335,33 +335,34 @@ if financiar:
                 st.markdown("### 📝 Resumen Final de la Operación")
                 with st.container(border=True):
                     c_fact1, c_fact2 = st.columns([2, 1])
+                    
+                    # Calculamos el anticipo REAL que va al capital
+                    if pr_actual == "Equilibrado (no poner extra)":
+                        anticipo_visual = (ant_ars + usado_ars) / tc if es_usd else (ant_ars + usado_ars)
+                    else:
+                        anticipo_visual = (ant_ars + usado_ars) / tc if es_usd else (ant_ars + usado_ars)
+                    
                     with c_fact1:
                         st.markdown("**CONCEPTO**")
-                        st.write(f"Valor del Vehículo")
-                        if ant_ars > 0 or usado_ars > 0:
-                            st.write(f"(-) Anticipo / Usado (Parte que abona el cliente)")
+                        st.write(f"Valor del Vehículo (con FyF y Patentamiento)")
+                        st.write(f"**(-) Lo que entrega el cliente (Anticipo / Usado)**")
                         st.write(f"Saldo a Financiar")
-                        st.write(f"(+) Gasto de Otorgamiento ({res_final['gasto_pct']:.2f}%)")
+                        st.write(f"**(+) Gasto de Otorgamiento (Va en el préstamo)**")
                     with c_fact2:
                         st.markdown("**MONTO**")
                         st.write(f"{simbolo} {tot_abonar:,.0f}")
-                        if ant_ars > 0 or usado_ars > 0:
-                            # Mostramos el anticipo REAL (lo que fue al capital), no el total con gastos
-                            if pr_actual == "Equilibrado (no poner extra)":
-                                ant_real = (tot_ars - mostrar_capital) if not es_usd else ((tot_abonar - (mostrar_capital/tc)))
-                                st.write(f"- $ {ant_real:,.0f}" if not es_usd else f"- u$s {ant_real:,.0f}")
-                            else:
-                                st.write(f"- $ {ant_ars + usado_ars:,.0f}")
+                        st.write(f"- {simbolo} {anticipo_visual:,.0f}")
                         st.write(f"$ {mostrar_capital:,.0f}")
                         st.write(f"$ {mostrar_gasto:,.0f}")
+                    
                     st.divider()
                     
                     col_res1, col_res2 = st.columns(2)
                     with col_res1:
-                        st.markdown("**DEBE PONER AL INICIO (Anticipo + Gastos):**")
+                        st.markdown("**EL CLIENTE DEBE PONER AL INICIO:**")
                         if pr_actual == "Equilibrado (no poner extra)":
                             st.markdown(f"## {simbolo} {(ant_ars + usado_ars)/tc:,.0f}" if es_usd else f"## $ {ant_ars + usado_ars:,.0f}")
-                            st.caption("El cliente entrega exactamente este monto. Incluye el gasto de otorgamiento.")
+                            st.caption("El cliente entrega exactamente este monto. El gasto ya está incluido en la financiación.")
                         else:
                             monto_inicial = res_final['poner_ars']
                             st.markdown(f"## {simbolo} {monto_inicial/tc:,.0f}" if es_usd else f"## $ {monto_inicial:,.0f}")
