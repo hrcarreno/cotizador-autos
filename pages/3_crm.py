@@ -45,6 +45,7 @@ with tab1:
     else:
         df = pd.DataFrame(leads_raw)
         
+        # FILTRO POR ROL
         if not es_admin_o_super:
             df = df[df['vendedor'] == usuario_actual]
             if df.empty:
@@ -54,6 +55,7 @@ with tab1:
         df['fecha_proximo_contacto'] = pd.to_datetime(df['fecha_proximo_contacto']).dt.date
         hoy = date.today()
 
+        # DASHBOARD
         c1, c2, c3, c4 = st.columns(4)
         total = len(df)
         cerrados = len(df[df['estado'] == 'Cerrado'])
@@ -67,6 +69,7 @@ with tab1:
 
         st.divider()
 
+        # BÚSQUEDA Y NUEVO LEAD
         col_search, col_btn = st.columns([4, 1])
         with col_search:
             busqueda = st.text_input("🔍 Buscar cliente o teléfono...", "").lower()
@@ -90,6 +93,7 @@ with tab1:
                         }).execute()
                         st.rerun()
 
+        # FILTRO DE BÚSQUEDA
         if busqueda:
             df = df[df['nombre'].str.lower().str.contains(busqueda, na=False) | df['telefono'].astype(str).str.contains(busqueda, na=False)]
             if df.empty:
@@ -147,17 +151,17 @@ with tab1:
                                 supabase.table("leads").delete().eq("id", row['id']).execute()
                                 st.rerun()
 
-                # --- NUEVO: HISTORIAL DE COTIZACIONES ---
+                # --- HISTORIAL DE COTIZACIONES (NUEVO) ---
                 with st.expander("💰 Ver Cotizaciones Guardadas"):
                     try:
-                        # Buscamos las cotizaciones por el modelo (ideal sería por teléfono o DNI)
-                        cot_res = supabase.table("cotizaciones").select("*").eq("modelo", row['modelo_interes']).execute()
+                        # Buscamos las cotizaciones que tengan el ID de este lead
+                        cot_res = supabase.table("cotizaciones").select("*").eq("lead_id", row['id']).execute()
                         if cot_res.data:
-                            st.write(f"Se encontraron {len(cot_res.data)} cotización(es) para este modelo:")
+                            st.write(f"Se encontraron {len(cot_res.data)} cotización(es) para este cliente:")
                             for c in cot_res.data:
                                 st.info(f"**{c['linea']}** a {c['plazo_meses']} meses | Cuota: ${c['cuota_inicial']:,.0f} | Vendedor: {c.get('vendedor', 'N/A')}")
                         else:
-                            st.write("No hay cotizaciones guardadas para este modelo.")
+                            st.write("No hay cotizaciones guardadas para este cliente.")
                     except Exception as e:
                         st.error(f"Error al buscar cotizaciones: {e}")
 
