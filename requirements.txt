@@ -5,3 +5,5 @@ supabase
 fpdf2
 streamlit-js-eval
 streamlit-calendar
+Flask
+gunicorn
