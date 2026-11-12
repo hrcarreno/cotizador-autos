@@ -40,9 +40,10 @@ async def procesar_ia(pedido: PedidoIA):
         Claves exactas:
         - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U")
         - "anticipo": número entero en pesos. 
-          REGLA DE ORO: Si el usuario dice "15 palos", debés devolver 15000000 (15 * 1.000.000). Si dice "5 lucas", devolver 5000.
+          REGLA DE ORO: Si el usuario dice "15 palos", debés devolver 15000000.
         - "usado": número entero en pesos (si no menciona, devolver 0)
         - "financiar": boolean (true si pide financiar, false si no)
+        - "aplicar_bonif": boolean (true si pide aplicar el descuento/bonificación máxima, false si no)
         
         IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
         
@@ -63,7 +64,8 @@ async def procesar_ia(pedido: PedidoIA):
             "modelo": str(datos.get("modelo", "")),
             "anticipo": int(datos.get("anticipo", 0)),
             "usado": int(datos.get("usado", 0)),
-            "financiar": bool(datos.get("financiar", False))
+            "financiar": bool(datos.get("financiar", False)),
+            "aplicar_bonif": bool(datos.get("aplicar_bonif", False))
         }
         
         return {"respuesta": json.dumps(resultado)}
