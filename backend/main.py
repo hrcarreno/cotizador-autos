@@ -4,13 +4,13 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 from openai import OpenAI
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = FastAPI(title="Cotizador BYD API")
 
-# Permitir que React (en localhost o Vercel) se conecte
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -19,11 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Conexiones
 try:
     supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
     client_ia = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.getenv("GROQ_API_KEY"))
-    print("Conexiones establecidas")
 except Exception as e:
     print(f"Error de conexión: {e}")
 
@@ -37,23 +35,37 @@ class PedidoIA(BaseModel):
 @app.post("/api/ia")
 async def procesar_ia(pedido: PedidoIA):
     try:
-        # Aquí iría el prompt completo que teníamos en el HTML
+        system_prompt = """Sos un asistente de ventas de autos en Argentina. Extraé datos del texto y devolvé SOLO un JSON válido.
+        
+        Claves exactas:
+        - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U")
+        - "anticipo": número entero en pesos. 
+          REGLA DE ORO: Si el usuario dice "15 palos", debés devolver 15000000 (15 * 1.000.000). Si dice "5 lucas", devolver 5000.
+        - "usado": número entero en pesos (si no menciona, devolver 0)
+        - "financiar": boolean (true si pide financiar, false si no)
+        
+        IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
+        
         response = client_ia.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
-                {"role": "system", "content": "Sos un asistente. Extraé modelo, anticipo, usado, prioridad en JSON. Solo devolvé el JSON."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": pedido.prompt}
             ],
             response_format={ "type": "json_object" }
         )
-        return {"respuesta": response.choices[0].message.content}
+        
+        texto = response.choices[0].message.content
+        datos = json.loads(texto)
+        
+        # Normalizamos los datos por si la IA devuelve strings
+        resultado = {
+            "modelo": str(datos.get("modelo", "")),
+            "anticipo": int(datos.get("anticipo", 0)),
+            "usado": int(datos.get("usado", 0)),
+            "financiar": bool(datos.get("financiar", False))
+        }
+        
+        return {"respuesta": json.dumps(resultado)}
     except Exception as e:
         return {"error": str(e)}
-
-# Ruta de prueba para los modelos
-@app.get("/api/modelos")
-def get_modelos():
-    return [
-        {"nombre": "Dolphin Mini EV GS", "precio": 37700000, "moneda": "ARS"},
-        {"nombre": "Song Pro DM-I GS", "precio": 35616, "moneda": "USD"}
-    ]
