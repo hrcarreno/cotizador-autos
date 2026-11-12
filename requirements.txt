@@ -7,3 +7,4 @@ streamlit-js-eval
 streamlit-calendar
 Flask
 gunicorn
+python-dotenv
