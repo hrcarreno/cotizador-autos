@@ -205,7 +205,7 @@ const gt=x=>x.toLocaleString("es-AR",{maximumFractionDigits:2});
 const lm=l=>!l.m||l.m.test(M[$("mod").value][0]);
 let pz=36;
 
-// --- ARREGLO DEL CÓDIGO DISFRAZADO ---
+// --- CÓDIGO DISFRAZADO ARREGLADO ---
 const cod=n=>{n=Math.round(n);return "FC"+Math.floor(n/1e6)+"AG"+String(Math.floor(n%1e6/1e3)).padStart(3,"0")+"HC"+String(n%1e3).padStart(3,"0")};
 const setBo=()=>{$("sb").checked=false;$("bo").value=""; const cbox = $("codv"); if(cbox) cbox.textContent = ""; };
 
@@ -245,7 +245,6 @@ function calc(){
   $("bb").hidden=!apl;
   $("cod").hidden=!hasB;
   
-  // ARREGLO: Solo intentamos escribir el código si el elemento existe y hay bonificación
   const codElement = $("codv");
   if(codElement) {
     codElement.textContent = hasB ? cod(bon) : "";
