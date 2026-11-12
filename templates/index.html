@@ -54,6 +54,7 @@
         .cr .cu{color:var(--acc);font-weight:700;font-size:15px;text-align:right;grid-row:2;grid-column:2}
         .aiout{margin-top:12px;background:var(--accbg);border:1px solid var(--acc);border-radius:8px;padding:12px;white-space:pre-wrap;font-size:14px}
         .aisteps{margin-top:8px;font-size:12px;color:var(--mut)}
+        .code-box {background: var(--bg); border: 1px dashed var(--acc); padding: 12px; border-radius: 8px; font-family: monospace; text-align: center; font-size: 16px; color: var(--acc); margin-top: 15px; letter-spacing: 2px;}
     </style>
 </head>
 <body>
@@ -159,17 +160,17 @@
 <script>
 // [modelo, moneda, precio, bonificación, precio con bonif., FyF, patentamiento]
 const M=[
-["Dolphin Mini EV GL","ARS",36200000,0,36200000,800000,2381960],
-["Dolphin Mini EV GS","ARS",37700000,0,37700000,800000,2480660],
+["Dolphin Mini EV GL","ARS",36200000,2172000,34028000,800000,2381960],
+["Dolphin Mini EV GS","ARS",37700000,2262000,35438000,800000,2480660],
 ["Yuan Pro EV GL","USD",30990,0,30990,500,2169],
 ["Yuan Pro EV GS","USD",31990,0,31990,500,2239],
-["Atto 2 DM-I GS","USD",32291,0,32291,500,2147],
-["Song Pro DM-I GL","USD",33716,0,33716,500,2242],
-["Song Pro DM-I GS","USD",35616,0,35616,500,2368],
+["Atto 2 DM-I GS","USD",32291,1615,30676,500,2147],
+["Song Pro DM-I GL","USD",33716,1686,32030,500,2242],
+["Song Pro DM-I GS","USD",35616,1781,33835,500,2368],
 ["Seal U DM-I GS","USD",47990,0,47990,800,3359],
-["SHARK DM-O GS","USD",59990,0,59990,800,3863],
+["SHARK DM-O GS","USD",59990,4799,55191,800,3863],
 ["TI7 GS","USD",65500,0,65500,800,4585],
-["Seal 5","USD",31990,0,31990,500,2127]];
+["Seal 5","USD",31990,1600,30390,500,2127]];
 
 const $=id=>document.getElementById(id);
 const f=n=>"$ "+Math.round(n).toLocaleString("es-AR");
@@ -204,6 +205,10 @@ const gt=x=>x.toLocaleString("es-AR",{maximumFractionDigits:2});
 const lm=l=>!l.m||l.m.test(M[$("mod").value][0]);
 let pz=36;
 
+// --- ARREGLO DEL CÓDIGO DISFRAZADO ---
+const cod=n=>{n=Math.round(n);return "FC"+Math.floor(n/1e6)+"AG"+String(Math.floor(n%1e6/1e3)).padStart(3,"0")+"HC"+String(n%1e3).padStart(3,"0")};
+const setBo=()=>{$("sb").checked=false;$("bo").value=""; const cbox = $("codv"); if(cbox) cbox.textContent = ""; };
+
 function fillLines(){
   const prev=$("lin").value;
   $("lin").innerHTML="";
@@ -235,8 +240,17 @@ function calc(){
   const [nom,mon,lista,bon,pb,fyf,pt]=M[$("mod").value];
   const usd=mon==="USD", nf=usd?u:f, of=usd?f:u, tc=num("tc");
   const hasB=bon>0, apl=hasB&&$("sb").checked;
-  $("sbw").hidden=!hasB;$("bb").hidden=!apl;$("cod").hidden=!hasB;
-  if(hasB)$("codv").textContent=cod(bon);
+  
+  $("sbw").hidden=!hasB;
+  $("bb").hidden=!apl;
+  $("cod").hidden=!hasB;
+  
+  // ARREGLO: Solo intentamos escribir el código si el elemento existe y hay bonificación
+  const codElement = $("codv");
+  if(codElement) {
+    codElement.textContent = hasB ? cod(bon) : "";
+  }
+  
   $("bmon").textContent=usd?"USD":"$";
   const bo=apl?Math.min(num("bo"),lista):0, cot=lista-bo;
   const dc=$("pat").value==="con", pat=dc?pt:0;
@@ -315,8 +329,6 @@ function calc(){
  fm+`\nValores según la lista vigente. No incluye seguro.`;
 }
 
-const cod=n=>{n=Math.round(n);return "FC"+Math.floor(n/1e6)+"AG"+String(Math.floor(n%1e6/1e3)).padStart(3,"0")+"HC"+String(n%1e3).padStart(3,"0")};
-const setBo=()=>{$("sb").checked=false;$("bo").value=""};
 $("mod").onchange=()=>{setBo();fillLines()};
 ["pat","sb","s1","s2","s3","tm","ltvm","qr","prio"].forEach(id=>$(id).onchange=calc);
 $("lin").onchange=fillChips;
