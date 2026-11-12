@@ -1,195 +1,557 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cotizador BYD 0 km</title>
-    <!-- Fuente Inter para un look profesional -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #f4f5f3;
-            --card: #ffffff;
-            --ink: #1b2430;
-            --mut: #667080;
-            --line: #d9dde1;
-            --acc: #1f78b4;
-            --accbg: #e6f1f8;
-            --ok: #1d6b3f;
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Cotizador BYD 0 km</title>
+<style>
+:root{--bg:#f4f5f3;--card:#fff;--ink:#1b2430;--mut:#667080;--line:#d9dde1;--acc:#1f78b4;--accbg:#e6f1f8;--ok:#1d6b3f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181e;--card:#1c222b;--ink:#e8ebee;--mut:#98a2b0;--line:#2f3743;--acc:#5bb4ea;--accbg:#14303f;--ok:#5fcf8f}}
+:root[data-theme="dark"]{--bg:#14181e;--card:#1c222b;--ink:#e8ebee;--mut:#98a2b0;--line:#2f3743;--acc:#5bb4ea;--accbg:#14303f;--ok:#5fcf8f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 14px 40px}
+h1{font-size:22px;margin:4px 0 2px;letter-spacing:-.01em}
+.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+h2{font-size:15px;margin:0 0 10px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+select,input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+select:focus,input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:15px}
+.row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.row.mut{color:var(--mut);font-size:13px}
+.row.tot{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
+.big{background:var(--accbg);border-color:var(--acc)}
+.cuota{font-size:40px;font-weight:800;letter-spacing:-.02em;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1.1}
+.warn{color:var(--acc);font-size:13px;margin:6px 0 0}
+button.go{width:100%;margin-top:8px;background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:12px;font:inherit;font-weight:600;cursor:pointer}
+textarea{height:210px;font-size:14px;resize:vertical}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.cr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;cursor:pointer}
+.cr[aria-pressed="true"]{border-color:var(--acc);background:var(--accbg)}
+.cr.no{opacity:.65}
+.cr b{grid-column:1/-1;font-size:14px}
+.cr span{font-size:13px;color:var(--mut)}
+.cr .cu{color:var(--acc);font-weight:700;font-size:15px;text-align:right;grid-row:2;grid-column:2}
+.note{color:var(--mut);font-size:12px;margin:0}
+
+[hidden]{display:none!important}
+.sw{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink);margin:16px 0 6px;cursor:pointer}
+.sw input{appearance:none;-webkit-appearance:none;width:42px;height:24px;padding:0;border:0;border-radius:12px;background:var(--line);position:relative;flex:none;cursor:pointer}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.sw input:checked{background:var(--acc)}
+.sw input:checked::after{left:21px}
+.usd{color:var(--mut);font-size:14px;margin-top:2px}
+@media (min-width:520px){main{max-width:1040px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}}
+#ai{margin-bottom:12px}
+#aiin{height:auto;min-height:88px}
+.aibtns{display:flex;flex-wrap:wrap;gap:8px}
+.aibtns button.go{flex:1 1 180px;width:auto}
+.aibtns .sec{margin-top:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:12px 14px;font:inherit;cursor:pointer}
+.aibtns button:disabled{opacity:.55;cursor:progress}
+.aisteps{margin-top:10px;font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+.aiout{margin-top:10px;background:var(--accbg);border:1px solid var(--acc);border-radius:8px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+</style>
+<main>
+<h1>Cotizador BYD 0 km</h1>
+<p class="sub">Lista de precios cargada, 11 modelos · Financiación Banco Santander, octubre 2026</p>
+<section id="ai" hidden>
+<h2>Asistente</h2>
+<p class="note">Contale qué pide el cliente y el asistente carga los datos en el cotizador. Los precios, la diferencia y las cuotas los calcula el cotizador, no la IA. El asesor decide qué ofrecer.</p>
+<div class="chips" id="aiex" role="group" aria-label="Ejemplos de pedido"></div>
+<label for="aiin">Pedido del cliente</label>
+<textarea id="aiin" placeholder="Ej: Quiere una Song Pro DM-I GS, entrega un usado tasado en 12 millones y financia el resto. Dólar agencia 1.450."></textarea>
+<div class="aibtns">
+<button class="go" id="aigo" type="button">Armar cotización</button>
+<button class="sec" id="aistop" type="button" hidden>Detener</button>
+<button class="sec" id="aiclr" type="button">Nueva consulta</button>
+</div>
+<div class="aisteps" id="aisteps" hidden></div>
+<div class="aiout" id="aiout" aria-live="polite" hidden></div>
+</section>
+<div class="cols">
+<div>
+<section>
+<h2>Vehículo</h2>
+<select id="mod" aria-label="Modelo"></select>
+<div class="row" id="cod" hidden><span>Código</span><span id="codv" style="font-variant-numeric:tabular-nums;letter-spacing:.03em"></span></div>
+<label class="sw" id="sbw" hidden><input type="checkbox" id="sb"><span>Aplicar bonificación</span></label>
+<div id="bb" hidden>
+<label for="bo">Bonificación a aplicar (<span id="bmon"></span>)</label>
+<input id="bo" inputmode="numeric" placeholder="0" autocomplete="off">
+</div>
+<label for="pat">Patentamiento</label>
+<select id="pat"><option value="con">Patenta el concesionario</option><option value="cli">Patenta el cliente</option></select>
+<div id="precio" style="margin-top:10px"></div>
+</section>
+<section>
+<h2>Forma de pago</h2>
+<label for="tc">Dólar agencia ($)</label>
+<input id="tc" inputmode="numeric" placeholder="0" autocomplete="off">
+<label class="sw"><input type="checkbox" id="s1"><span>Entrego anticipo</span></label>
+<div id="b1" hidden><div class="two">
+<div><label for="ap">En pesos ($)</label><input id="ap" inputmode="numeric" placeholder="0" autocomplete="off"></div>
+<div><label for="au">En dólares (USD)</label><input id="au" inputmode="numeric" placeholder="0" autocomplete="off"></div>
+</div></div>
+<label class="sw"><input type="checkbox" id="s2"><span>Entrego un vehículo en parte de pago</span></label>
+<div class="usd" id="eq1" hidden></div>
+<div id="b2" hidden><div class="two">
+<div><label for="ta">Tasación</label><input id="ta" inputmode="numeric" placeholder="0" autocomplete="off"></div>
+<div><label for="tm">Moneda</label><select id="tm"><option value="ars">Pesos</option><option value="usd">Dólares</option></select></div>
+</div></div>
+<div class="usd" id="eq2" hidden></div>
+<p class="warn" id="adv"></p>
+</section>
+</div>
+<div>
+<section class="big">
+<div class="row mut"><span id="dl">Diferencia</span><span></span></div>
+<div class="cuota" id="dif">-</div>
+<div class="usd" id="difu"></div>
+<div id="det" style="margin-top:8px"></div>
+</section>
+<section>
+<label class="sw" style="margin-top:0"><input type="checkbox" id="s3"><span>Financiar la diferencia</span></label>
+<p class="note">Banco Santander, política de octubre 2026. La financiación se calcula en pesos.</p>
+<div id="b3" hidden>
+<label for="lin">Línea</label>
+<select id="lin"></select>
+<label>Plazo (meses)</label>
+<div class="chips" id="plzc"></div>
+<div class="two">
+<div><label for="ltvm">LTV según perfil del cliente</label><select id="ltvm"><option value="0">El menor (90%)</option><option value="1">El mayor (100%)</option></select></div>
+<div><label for="go">Adicional del concesionario (%)</label><input id="go" inputmode="decimal" value="0" autocomplete="off"></div>
+</div>
+<label class="sw"><input type="checkbox" id="qr"><span>Cobrar el quebranto aunque BYD lo reintegre</span></label>
+<p class="note" id="linfo" style="margin-top:6px"></p>
+<p class="warn" id="fw"></p>
+<div class="row mut" style="margin-top:14px"><span id="tna2"></span><span></span></div>
+<div class="cuota" id="cuota">-</div>
+<div id="fin" style="margin-top:8px"></div>
+<h2 style="margin-top:18px">Mejores opciones</h2>
+<label for="prio">Qué prioriza el cliente</label>
+<select id="prio"><option value="cuota">Cuota más baja</option><option value="inicial">Poner menos plata al inicio</option><option value="costo">Menor costo total (tasa fija)</option></select>
+<p class="note" id="cn" style="margin-top:6px"></p>
+<div id="cmp"></div>
+</div>
+</section>
+<section>
+<h2>Mensaje para el cliente</h2>
+<textarea id="msg" readonly aria-label="Mensaje para WhatsApp"></textarea>
+<button class="go" id="cp" type="button">Copiar mensaje</button>
+</section>
+</div>
+</div>
+<p class="note">Patentamiento y fletes/formularios (FyF) según la tabla de la lista; si patenta el cliente solo se suma FyF. La bonificación la define el vendedor. Financiación: política de Banco Santander de octubre 2026; cuotas con sistema francés e IVA sobre el interés; el gasto de otorgamiento es el quebranto de Santander más IVA, más un adicional del concesionario que hoy está en 0%; el IIBB no se suma aparte (se cobra en la cuota); el LTV se calcula sobre el precio del vehículo; las cuotas UVA son iniciales y se ajustan por inflación. No incluye seguro.</p>
+</main>
+<script>
+// [modelo, moneda, precio, bonificación, precio con bonif., FyF, patentamiento]
+const M=[
+["Dolphin Mini EV GL","ARS",36200000,0,36200000,800000,2381960],
+["Dolphin Mini EV GS","ARS",37700000,0,37700000,800000,2480660],
+["Yuan Pro EV GL","USD",30990,0,30990,500,2169],
+["Yuan Pro EV GS","USD",31990,0,31990,500,2239],
+["Atto 2 DM-I GS","USD",32291,0,32291,500,2147],
+["Song Pro DM-I GL","USD",33716,0,33716,500,2242],
+["Song Pro DM-I GS","USD",35616,0,35616,500,2368],
+["Seal U DM-I GS","USD",47990,0,47990,800,3359],
+["SHARK DM-O GS","USD",59990,0,59990,800,3863],
+["TI7 GS","USD",65500,0,65500,800,4585],
+["Seal 5","USD",31990,0,31990,500,2127]];
+const $=id=>document.getElementById(id);
+const f=n=>"$ "+Math.round(n).toLocaleString("es-AR");
+const u=n=>"USD "+(Math.round(n*100)/100).toLocaleString("es-AR",{maximumFractionDigits:2});
+const num=id=>parseInt($(id).value.replace(/\D/g,""))||0;
+const dec=id=>{const v=$(id).value.trim().replace(",",".");return v===""?NaN:parseFloat(v)};
+function frances(mo,tna,n){
+  const i=tna/1200, pura=i?mo*i/(1-Math.pow(1+i,-n)):mo/n;
+  let d=mo,sum=0,first=0,last=0;
+  for(let k=1;k<=n;k++){const it=d*i,c=pura+it*.21;if(k===1)first=c;last=c;sum+=c;d-=pura-it}
+  return {first,last,sum};
+}
+M.forEach((m,i)=>$("mod").add(new Option(m[0]+" ("+m[1]+")",i)));
+const SA=/^(Dolphin Mini|Song Pro|Yuan Pro|Seal 5|Atto 2)/;
+// Banco Santander, política octubre 2026.
+// k: conv = convenio BYD (BYD reintegra el subsidio al concesionario), queb = quebranto a cargo del concesionario, sin = sin quebranto, com = con comisión
+// r: [plazo, TNA %, quebranto % (sin IVA), monto máximo en $ (solo convenio)]   ltv: % del precio del vehículo según perfil
+const LN=[
+{n:"Convenio BYD · UVA 0% (especial)",k:"conv",uva:1,m:SA,r:[[12,0,6.56,25e6],[18,0,9.64,17e6]]},
+{n:"Convenio BYD · Fija 0% (especial)",k:"conv",m:SA,r:[[12,0,16.39,10e6]]},
+{n:"Convenio BYD · Fija 9,90% (especial)",k:"conv",m:SA,r:[[12,9.9,10.93,15e6]]},
+{n:"Convenio BYD · Fija 14,90% (especial)",k:"conv",m:SA,r:[[18,14.9,12.61,13e6]]},
+{n:"Quebranto concesionario · Fija 0%",k:"queb",ltv:[90,100],r:[[12,0,15.8],[18,0,21.9],[24,0,27.5],[36,0,37],[48,0,44.8]]},
+{n:"Quebranto concesionario · UVA 0%",k:"queb",uva:1,ltv:[85],r:[[12,0,6.5],[18,0,9.3],[24,0,12],[36,0,17],[48,0,21.6]]},
+{n:"Quebranto concesionario · UVA 9,90%",k:"queb",uva:1,ltv:[85],r:[[12,9.9,1.4],[18,9.9,2],[24,9.9,2.6],[36,9.9,3.7],[48,9.9,4.8]]},
+{n:"Sin quebranto · UVA 12,50%",k:"sin",uva:1,ltv:[85],r:[[12,12.5,0],[18,12.5,0],[24,12.5,0],[36,12.5,0],[48,12.5,0]]},
+{n:"Sin quebranto · Fija 32,90%",k:"sin",ltv:[90,100],r:[[12,32.9,0],[18,32.9,0],[24,32.9,0],[36,32.9,0],[48,32.9,0],[60,32.9,0]]},
+{n:"Comisión · UVA 14,50%",k:"com",uva:1,ltv:[85],r:[[12,14.5,0],[18,14.5,0],[24,14.5,0],[36,14.5,0],[48,14.5,0]]},
+{n:"Comisión · Fija 34,90%",k:"com",ltv:[90,100],r:[[12,34.9,0],[18,34.9,0],[24,34.9,0],[36,34.9,0],[48,34.9,0],[60,34.9,0]]}];
+const gt=x=>x.toLocaleString("es-AR",{maximumFractionDigits:2});
+const lm=l=>!l.m||l.m.test(M[$("mod").value][0]);
+let pz=36;
+function fillLines(){
+  const prev=$("lin").value;
+  $("lin").innerHTML="";
+  LN.forEach((l,i)=>{if(lm(l))$("lin").add(new Option(l.n,i))});
+  $("lin").value=(prev!==""&&LN[prev]&&lm(LN[prev]))?prev:LN.findIndex(lm);
+  fillChips();
+}
+function fillChips(){
+  const l=LN[$("lin").value];
+  if(!l.r.some(r=>r[0]===pz))pz=(l.r.find(r=>r[0]===36)||l.r[l.r.length-1])[0];
+  $("plzc").innerHTML="";
+  l.r.forEach(r=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="chip";b.textContent=r[0];
+    b.setAttribute("aria-pressed",r[0]===pz);
+    b.onclick=()=>{pz=r[0];fillChips()};
+    $("plzc").appendChild(b);
+  });
+  calc();
+}
+// Una opción = línea + plazo. c: {difA, cotA, antAr, ex, ltvm, qr}
+function opt(l,r,c){
+  const ltv=l.ltv?l.ltv[Math.min(c.ltvm,l.ltv.length-1)]:null;
+  const cap=Math.min(r[3]||Infinity,ltv?ltv/100*c.cotA:Infinity);
+  const qpct=(l.k==="conv"&&!c.qr)?0:r[2]*1.21, gp=qpct+c.ex;
+  const fr=frances(c.difA,r[1],r[0]), gast=c.difA*gp/100;
+  return {l,r,ltv,cap,qpct,gp,gast,fr,no:c.difA>cap,pon:c.antAr+gast,costo:fr.sum-c.difA+gast};
+}
+function calc(){
+  const [nom,mon,lista,bon,pb,fyf,pt]=M[$("mod").value];
+  const usd=mon==="USD", nf=usd?u:f, of=usd?f:u, tc=num("tc");
+  const hasB=bon>0, apl=hasB&&$("sb").checked;
+  $("sbw").hidden=!hasB;$("bb").hidden=!apl;$("cod").hidden=!hasB;
+  if(hasB)$("codv").textContent=cod(bon);
+  $("bmon").textContent=usd?"USD":"$";
+  const bo=apl?Math.min(num("bo"),lista):0, cot=lista-bo;
+  const dc=$("pat").value==="con", pat=dc?pt:0;
+  const tot=cot+fyf+pat, tl=dc?"Total patentado":"Total a abonar";
+  $("precio").innerHTML=
+   `<div class="row"><span>Precio de lista</span><span>${nf(lista)}</span></div>`+
+   (bo?`<div class="row"><span>Bonificación aplicada</span><span>- ${nf(bo)}</span></div>`:"")+
+   `
+    <div class="row"><span><b>Precio cotizado</b></span><span><b>${nf(cot)}</b></span></div>
+    <div class="row mut"><span>Fletes y formularios</span><span>${nf(fyf)}</span></div>`+
+   (dc?`<div class="row mut"><span>Patentamiento</span><span>${nf(pt)}</span></div>`:"")+
+   `<div class="row tot"><span>${tl}</span><span>${nf(tot)}</span></div>`+
+   (tc?`<div class="row mut"><span>Equivale a</span><span>${usd?f(tot*tc):u(tot/tc)}</span></div>`:"");
+
+  
+  const a1=$("s1").checked,a2=$("s2").checked,a3=$("s3").checked;
+  $("b1").hidden=!a1;$("b2").hidden=!a2;$("b3").hidden=!a3;
+  const antA=a1?num("ap"):0, antU=a1?num("au"):0;
+  const tas=a2?num("ta"):0, tasU=a2&&$("tm").value==="usd";
+  const needTc=!tc&&(usd?(antA>0||(tas>0&&!tasU)):(antU>0||(tas>0&&tasU)));
+  $("adv").textContent=needTc?"Cargá el dólar agencia para convertir los importes.":"";
+  const toN=(a,d)=>usd?(tc?a/tc:0)+d:a+d*tc;
+  const antN=toN(antA,antU);
+  const usado=tasU?(usd?tas:tas*tc):(usd?(tc?tas/tc:0):tas);
+  const dif=tot-antN-usado, fav=dif<0, ad=Math.abs(dif);
+  $("dl").textContent=fav?"Saldo a favor del cliente":"Diferencia a abonar";
+  $("dif").textContent=nf(ad);
+  $("difu").textContent=tc?`≈ ${usd?f(ad*tc):u(ad/tc)} al dólar agencia de ${f(tc)}`:"Cargá el dólar agencia para ver la otra moneda.";
+  const eq=x=>tc?`<div class="row mut" style="padding-top:0;margin-top:-4px"><span></span><span>≈ ${usd?f(x*tc):u(x/tc)}</span></div>`:"";
+  let det=`<div class="row"><span>${tl}</span><span>${nf(tot)}</span></div>`+eq(tot);
+  if(a1)det+=`<div class="row mut"><span>Anticipo</span><span>- ${nf(antN)}</span></div>`+eq(antN);
+  if(a2)det+=`<div class="row mut"><span>Vehículo en parte de pago${tasU&&!usd?` (${u(tas)})`:""}</span><span>- ${nf(usado)}</span></div>`+eq(usado);
+  // equivalencias bajo los campos de ingreso
+  const q1=$("eq1"),q2=$("eq2");
+  q1.hidden=!(a1&&tc&&(antA||antU));q2.hidden=!(a2&&tc&&tas);
+  if(!q1.hidden)q1.textContent=`Anticipo total ≈ ${f(antA+antU*tc)} (${u(antA/tc+antU)})`;
+  if(!q2.hidden)q2.textContent=`Tasación ≈ ${tasU?f(tas*tc):u(tas/tc)}`;
+  $("det").innerHTML=det;
+
+  let fm="";
+  if(a3){
+    const difA=usd?dif*tc:dif, cotA=usd?cot*tc:cot, antAr=antA+antU*tc, ex=dec("go")||0;
+    const c={difA,cotA,antAr,ex,ltvm:parseInt($("ltvm").value)||0,qr:$("qr").checked};
+    $("fw").textContent="";$("tna2").textContent="";$("linfo").textContent="";$("cn").textContent="";$("cmp").innerHTML="";
+    const msg=t=>{$("cuota").textContent="-";$("fin").innerHTML=`<div class="row mut"><span>${t}</span><span></span></div>`};
+    if(dif<=0)msg("No hay diferencia para financiar.");
+    else if(usd&&!tc)msg("Cargá el dólar agencia: la financiación se calcula en pesos.");
+    else{
+      const l=LN[$("lin").value], r=l.r.find(x=>x[0]===pz)||l.r[0], o=opt(l,r,c);
+      const info={conv:`Convenio BYD: Santander debita el subsidio (quebranto ${gt(r[2])}% + IVA) al concesionario y BYD se lo reintegra al 100% con nota de crédito.`,
+        queb:`El quebranto (${gt(r[2])}% + IVA) lo debita Santander al concesionario, sin reintegro de BYD.`,
+        sin:"Línea sin quebranto.",
+        com:"Línea con comisión: el archivo no indica el porcentaje, por eso no se calcula."}[l.k];
+      $("linfo").textContent=info+(o.ltv?` LTV ${o.ltv}% sobre el precio del vehículo.`:"")+(r[3]?` Tope de financiación ${f(r[3])}.`:"")+(l.k==="conv"&&!c.qr?" No se cobra el quebranto al cliente.":"");
+      $("tna2").textContent=`${l.uva?"UVA":"Tasa fija"}, TNA ${gt(r[1])}% a ${pz} meses`;
+      if(o.no){
+        $("cuota").textContent="No alcanza";
+        $("fin").innerHTML=`<div class="row mut"><span>Esta línea financia como máximo</span><span>${f(o.cap)}</span></div>
+          <div class="row mut"><span>Te faltan de anticipo o usado</span><span>${f(difA-o.cap)}</span></div>`;
+      }else{
+        const parts=[];if(o.qpct>0)parts.push(`quebranto ${gt(r[2])}% + IVA`);if(ex>0)parts.push(`adicional ${gt(ex)}%`);
+        $("cuota").textContent=f(o.fr.first);
+        $("fin").innerHTML=
+         `<div class="row"><span>A financiar</span><span>${f(difA)}</span></div>
+          <div class="row mut"><span>Gasto de otorgamiento (${gt(o.gp)}%)</span><span>${f(o.gast)}</span></div>
+          <div class="row mut"><span>${parts.join(" + ")||"Sin cargos"}</span><span></span></div>
+          <div class="row"><span>Debes poner (sin contar el usado)</span><span>${f(o.pon)}</span></div>`+
+         (l.uva?`<div class="row mut"><span>Cuota UVA: se ajusta por inflación</span><span></span></div>`
+               :`<div class="row mut"><span>Última cuota</span><span>${f(o.fr.last)}</span></div>
+                 <div class="row mut"><span>Total de cuotas</span><span>${f(o.fr.sum)}</span></div>`);
+        fm=`\nFinanciación Banco Santander: ${l.n}\nA financiar ${f(difA)} en ${pz} cuotas (TNA ${gt(r[1])}%)\n${l.uva?"Cuota inicial aprox.":"Primera cuota"} ${f(o.fr.first)}${l.uva?" (se ajusta por UVA)":` (última ${f(o.fr.last)})`}${o.gast>0?`\nGasto de otorgamiento (${gt(o.gp)}%): ${f(o.gast)}`:""}\nDebés aportar${usado?" además del usado":""}: ${f(o.pon)}\n`;
+      }
+      // mejores opciones entre todas las líneas del modelo
+      const all=[];LN.forEach((x,i)=>{if(!lm(x))return;x.r.forEach(rr=>{const q=opt(x,rr,c);q.i=i;all.push(q)})});
+      const feas=all.filter(q=>!q.no), pr=$("prio").value;
+      const pool=pr==="costo"?feas.filter(q=>!q.l.uva):feas;
+      pool.sort(pr==="cuota"?(x,y)=>x.fr.first-y.fr.first:pr==="inicial"?(x,y)=>x.pon-y.pon||x.fr.first-y.fr.first:(x,y)=>x.costo-y.costo||x.fr.first-y.fr.first);
+      const top=pool.slice(0,3);
+      if(!feas.length){const mx=Math.max(...all.map(q=>q.cap));$("cn").textContent=`Ninguna línea alcanza con esta diferencia. La mayor financiación posible es ${f(mx)}: faltan ${f(difA-mx)} de anticipo o usado.`}
+      else if(!top.length)$("cn").textContent="Con esta diferencia solo alcanzan líneas UVA, que no se comparan por costo porque dependen de la inflación.";
+      else $("cn").textContent=`${feas.length} combinaciones de línea y plazo alcanzan para financiar ${f(difA)}. Estas son las 3 mejores según lo que prioriza el cliente; tocá una para elegirla.`+(pr==="costo"?" Las líneas UVA no se incluyen: su costo depende de la inflación.":" Las cuotas UVA son iniciales y se ajustan por inflación.");
+      $("cmp").innerHTML=top.map(q=>`<button type="button" class="cr" data-i="${q.i}" data-n="${q.r[0]}" aria-pressed="${String(q.i)===$("lin").value&&q.r[0]===pz}"><b>${q.l.n} · ${q.r[0]} cuotas</b><span>TNA ${gt(q.r[1])}% · debes poner ${f(q.pon)} · costo financiero ${f(q.costo)}${q.l.uva?" + ajuste UVA":""}</span><span class="cu">${f(q.fr.first)}</span></button>`).join("");
+    }
+  }
+  $("msg").value=
+`Hola! Te paso la cotización de tu BYD 0 km:
+
+*${nom}*
+Precio: ${nf(cot)}
+${dc?"Fletes, formularios y patentamiento":"Fletes y formularios (el patentamiento lo gestionás vos)"}: ${nf(fyf+pat)}
+${tl}: ${nf(tot)}
+`+(a1&&antN?`Anticipo: ${nf(antN)}\n`:"")
+ +(a2&&usado?`Tu vehículo en parte de pago: ${nf(usado)}${tasU&&!usd?` (${u(tas)})`:""}\n`:"")
+ +(a1||a2?`${fav?"Saldo a tu favor":"Diferencia a abonar"}: ${nf(ad)}${tc?` (${usd?f(ad*tc):u(ad/tc)})`:""}\n`:"")
+ +fm+`\nValores según la lista vigente. No incluye seguro.`;
+}
+// código disfrazado de la bonificación: FC{millones}AG{miles}HC{unidades}
+const cod=n=>{n=Math.round(n);return "FC"+Math.floor(n/1e6)+"AG"+String(Math.floor(n%1e6/1e3)).padStart(3,"0")+"HC"+String(n%1e3).padStart(3,"0")};
+const setBo=()=>{$("sb").checked=false;$("bo").value=""};
+$("mod").onchange=()=>{setBo();fillLines()};
+["pat","sb","s1","s2","s3","tm","ltvm","qr","prio"].forEach(id=>$(id).onchange=calc);
+$("lin").onchange=fillChips;
+["bo","ap","au","tc","ta"].forEach(id=>{$(id).oninput=e=>{const d=e.target.value.replace(/\D/g,"");e.target.value=d?parseInt(d).toLocaleString("es-AR"):"";calc()}});
+$("go").oninput=calc;
+$("cmp").onclick=e=>{const b=e.target.closest("button");if(!b||b.dataset.i===undefined)return;$("lin").value=b.dataset.i;pz=parseInt(b.dataset.n);fillChips()};
+$("cp").onclick=()=>{
+  const t=$("msg");t.select();
+  const ok=()=>{$("cp").textContent="Copiado";setTimeout(()=>$("cp").textContent="Copiar mensaje",1500)};
+  try{navigator.clipboard.writeText(t.value).then(ok,()=>{document.execCommand("copy");ok()})}
+  catch(e){try{document.execCommand("copy");ok()}catch(_){}}
+};
+setBo();fillLines();
+// Bonificaciones: no están escritas en el código. Se leen de la base de datos de la página,
+// que solo pueden leer quienes tienen permiso de colaborador. Sin permiso, el modelo no muestra bonificación.
+(async function(){
+  let db=null;
+  try{db=window.claude&&window.claude.use?await window.claude.use("db"):null}catch(e){db=null}
+  if(!db)return;
+  db.doc("bonificaciones/lista").onSnapshot(snap=>{
+    const d=snap.exists?snap.data():null,v=(d&&d.valores)||{};
+    M.forEach(m=>{const n=Number(v[m[0]]);m[3]=n>0?n:0});
+    calc();
+  },()=>{});
+})();
+// ---- Asistente de IA: carga los datos del cliente en el cotizador ----
+// Usa las funciones del cotizador (calc, fillLines, fillChips) y no calcula nada por su cuenta.
+(async function(){
+  let sample=null,canTools=false;
+  try{sample=window.claude&&window.claude.use?await window.claude.use("sample"):null}catch(e){sample=null}
+  if(!sample)return;
+  try{const lim=await sample.limits();canTools=!!(lim&&lim.tools)}catch(e){canTools=false}
+  if(!canTools)return;
+  $("ai").hidden=false;
+
+  const norm=s=>String(s==null?"":s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+  const grp=n=>Math.round(n).toLocaleString("es-AR");
+  const setNum=(id,v)=>{const n=Math.round(Number(v));$(id).value=n>0?grp(n):""};
+  const has=(a,k)=>a[k]!==undefined&&a[k]!==null;
+  const tx=id=>($(id).innerText||"").replace(/[ \t]+/g," ").replace(/\n\s*\n+/g,"\n").trim();
+
+  // Busca un nombre entre varios; si hay dudas devuelve un error que el asistente le traslada al asesor
+  function pick(q,names,what){
+    const nq=norm(q),nn=names.map(norm);
+    const exact=nn.indexOf(nq);
+    if(exact>=0)return exact;
+    const toks=nq.split(" ").filter(Boolean),hit=[];
+    nn.forEach((n,k)=>{if(toks.length&&toks.every(t=>n.includes(t)))hit.push(k)});
+    if(hit.length===1)return hit[0];
+    if(hit.length>1)throw new Error("Hay más de un "+what+" que coincide con '"+q+"': "+hit.map(k=>names[k]).join("; ")+". Preguntale al asesor cuál.");
+    throw new Error("No encuentro ese "+what+" ('"+q+"'). Opciones: "+names.join("; "));
+  }
+
+  function estado(){
+    calc();
+    const m=M[$("mod").value],fin=$("s3").checked,avail=LN.filter(lm);
+    const L=[
+      "MODELO: "+m[0]+" (lista en "+m[1]+")",
+      "PRECIO:\n"+tx("precio"),
+      "DÓLAR AGENCIA: "+($("tc").value?"$ "+$("tc").value:"sin cargar"),
+      "ANTICIPO: "+($("s1").checked?"en pesos $ "+($("ap").value||0)+", en dólares USD "+($("au").value||0):"no"),
+      "VEHÍCULO EN PARTE DE PAGO: "+($("s2").checked?"tasado en "+($("tm").value==="usd"?"USD ":"$ ")+($("ta").value||0):"no"),
+      "RESULTADO ("+$("dl").textContent+"): "+tx("dif")+" "+tx("difu"),
+      "FINANCIACIÓN: "+(fin?"activada":"no activada")
+    ];
+    if(fin){
+      L.push("Línea elegida: "+LN[$("lin").value].n+" a "+pz+" meses ("+tx("tna2")+")");
+      L.push("Cuota: "+tx("cuota"));
+      L.push(tx("fin"));
+      L.push("Prioridad del cliente: "+$("prio").selectedOptions[0].textContent);
+      L.push(tx("cn"));
+      Array.from($("cmp").children).forEach(b=>L.push("- "+b.innerText.replace(/\s*\n\s*/g," | ")));
+    }
+    if($("adv").textContent)L.push("AVISO: "+$("adv").textContent);
+    L.push("LÍNEAS DISPONIBLES PARA ESTE MODELO:\n"+avail.map(l=>"- "+l.n+" · plazos "+l.r.map(r=>r[0]).join("/")+" · TNA "+gt(l.r[0][1])+"%").join("\n"));
+    return L.join("\n");
+  }
+
+  function cargar(a){
+    a=a||{};
+    const ok=[];
+    try{
+      if(has(a,"modelo")){
+        const i=pick(a.modelo,M.map(x=>x[0]),"modelo");
+        $("mod").value=String(i);setBo();fillLines();ok.push("modelo "+M[i][0]);
+      }
+      if(has(a,"patentamiento")){
+        const c=norm(a.patentamiento).startsWith("cli")?"cli":"con";
+        $("pat").value=c;ok.push("patenta el "+(c==="cli"?"cliente":"concesionario"));
+      }
+      if(has(a,"dolar_agencia")){setNum("tc",a.dolar_agencia);ok.push("dólar agencia $ "+$("tc").value)}
+      if(has(a,"anticipo_pesos"))setNum("ap",a.anticipo_pesos);
+      if(has(a,"anticipo_usd"))setNum("au",a.anticipo_usd);
+      if(has(a,"anticipo_pesos")||has(a,"anticipo_usd")){
+        $("s1").checked=num("ap")>0||num("au")>0;
+        ok.push($("s1").checked?"anticipo $ "+($("ap").value||0)+" + USD "+($("au").value||0):"sin anticipo");
+      }
+      if(has(a,"usado_tasacion")||has(a,"usado_moneda")){
+        if(has(a,"usado_tasacion"))setNum("ta",a.usado_tasacion);
+        if(has(a,"usado_moneda"))$("tm").value=norm(a.usado_moneda).startsWith("d")?"usd":"ars";
+        $("s2").checked=num("ta")>0;
+        ok.push($("s2").checked?"usado tasado en "+($("tm").value==="usd"?"USD ":"$ ")+$("ta").value:"sin usado");
+      }
+      if(has(a,"bonificacion")){
+        if(!(M[$("mod").value][3]>0))throw new Error("Este modelo no tiene bonificación para aplicar.");
+        const n=Math.round(Number(a.bonificacion))||0;
+        $("sb").checked=n>0;setNum("bo",n);
+        ok.push(n>0?"bonificación indicada por el asesor":"sin bonificación");
+      }
+      if(has(a,"financiar")){$("s3").checked=!!a.financiar;ok.push(a.financiar?"financiación activada":"sin financiación")}
+      if(has(a,"prioridad")){
+        const p=norm(a.prioridad);
+        $("prio").value=p.startsWith("in")?"inicial":p.startsWith("co")?"costo":"cuota";
+        ok.push("prioridad: "+$("prio").selectedOptions[0].textContent);
+      }
+      if(has(a,"ltv")){$("ltvm").value=norm(a.ltv).startsWith("may")?"1":"0";ok.push("LTV "+$("ltvm").selectedOptions[0].textContent)}
+      if(has(a,"linea")||has(a,"plazo_meses")){
+        $("s3").checked=true;
+        if(has(a,"linea")){
+          const avail=LN.map((l,i)=>i).filter(i=>lm(LN[i]));
+          const k=pick(a.linea,avail.map(i=>LN[i].n),"línea");
+          $("lin").value=String(avail[k]);
         }
-        
-        /* Modo oscuro automático */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg: #14181e;
-                --card: #1c222b;
-                --ink: #e8ebee;
-                --mut: #98a2b0;
-                --line: #2f3743;
-                --acc: #5bb4ea;
-                --accbg: #14303f;
-                --ok: #5fcf8f;
-            }
+        const l=LN[$("lin").value];
+        if(has(a,"plazo_meses")){
+          const p=Math.round(Number(a.plazo_meses));
+          if(!l.r.some(r=>r[0]===p))throw new Error("La línea "+l.n+" tiene plazos de "+l.r.map(r=>r[0]).join(", ")+" meses; "+p+" no está.");
+          pz=p;
         }
+        fillChips();
+        ok.push("línea "+l.n+" a "+pz+" meses");
+      }
+    }catch(e){
+      calc();
+      throw new Error(e.message+(ok.length?" (Ya se cargó: "+ok.join(", ")+")":""));
+    }
+    calc();
+    return ok;
+  }
 
-        * { box-sizing: border-box; }
-        body { 
-            margin: 0; 
-            background: var(--bg); 
-            color: var(--ink); 
-            font: 15px/1.5 'Inter', sans-serif; 
-        }
-        main { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        
-        h1 { font-size: 26px; margin: 0 0 5px 0; letter-spacing: -0.5px; }
-        h2 { font-size: 16px; margin: 0 0 15px 0; font-weight: 600; }
-        .sub { color: var(--mut); font-size: 14px; margin: 0 0 20px 0; }
-        
-        .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-        @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
+  const out=$("aiout"),steps=$("aisteps"),go=$("aigo"),stop=$("aistop");
+  const turns=[];
+  let ctl=null,busy=false;
+  const step=t=>{const d=document.createElement("div");d.textContent=t;steps.appendChild(d);steps.hidden=false};
 
-        section { 
-            background: var(--card); 
-            border: 1px solid var(--line); 
-            border-radius: 12px; 
-            padding: 20px; 
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
-        }
+  const TOOLS=[
+    {name:"ver_estado",
+     description:"Devuelve el estado actual del cotizador en texto: modelo, precio, dólar, anticipo, usado, diferencia, financiación elegida, las 3 mejores opciones según la prioridad y las líneas disponibles para el modelo. Usala para leer resultados y antes de ajustar algo ya cargado.",
+     inputSchema:{type:"object",properties:{}},
+     execute:()=>{step("Revisando el cotizador");return estado()}},
+    {name:"cargar_datos",
+     description:"Carga datos en el cotizador y devuelve lo cargado más el estado resultante. Todos los campos son opcionales: mandá solo lo que el asesor dijo o lo que hay que cambiar. Si un nombre es ambiguo devuelve un error con las opciones.",
+     inputSchema:{type:"object",properties:{
+       modelo:{type:"string",description:"Nombre del modelo, por ejemplo 'Song Pro DM-I GS'."},
+       patentamiento:{type:"string",enum:["concesionario","cliente"],description:"Quién patenta."},
+       dolar_agencia:{type:"number",description:"Dólar agencia, en pesos."},
+       anticipo_pesos:{type:"number",description:"Anticipo en pesos. 0 lo quita."},
+       anticipo_usd:{type:"number",description:"Anticipo en dólares. 0 lo quita."},
+       usado_tasacion:{type:"number",description:"Tasación del vehículo en parte de pago, en la moneda de usado_moneda. 0 lo quita."},
+       usado_moneda:{type:"string",enum:["pesos","dolares"]},
+       bonificacion:{type:"number",description:"Monto de bonificación a aplicar, en la moneda de la lista del modelo. Solo si el asesor lo indicó."},
+       financiar:{type:"boolean",description:"Activa o desactiva la financiación de la diferencia."},
+       linea:{type:"string",description:"Nombre, o parte del nombre, de una de las líneas disponibles."},
+       plazo_meses:{type:"number",description:"Plazo en meses. Debe existir en la línea elegida."},
+       ltv:{type:"string",enum:["menor","mayor"],description:"LTV según el perfil del cliente: menor es 90%, mayor es 100%."},
+       prioridad:{type:"string",enum:["cuota","inicial","costo"],description:"cuota: cuota más baja. inicial: poner menos plata al inicio. costo: menor costo total."}
+     }},
+     execute:a=>{const ok=cargar(a);step("Cargó: "+(ok.join(" · ")||"nada nuevo"));return{cargado:ok,estado:estado()}}}
+  ];
 
-        label { display: block; font-size: 13px; color: var(--mut); margin: 10px 0 5px 0; font-weight: 500; }
-        select, input { 
-            width: 100%; 
-            font: inherit; 
-            color: var(--ink); 
-            background: var(--bg); 
-            border: 1px solid var(--line); 
-            border-radius: 8px; 
-            padding: 10px 12px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        select:focus, input:focus { border-color: var(--acc); }
+  const RULES=[
+    "Sos el asistente del Cotizador BYD 0 km de un asesor comercial de una concesionaria en Argentina. El asesor te cuenta qué pide el cliente y vos cargás los datos en el cotizador con la herramienta cargar_datos. Reglas:",
+    "- Los precios, la diferencia y las cuotas los calcula el cotizador. No calcules ni estimes importes: leelos del resultado de las herramientas y repetilos tal cual.",
+    "- Cargá solo lo que el asesor dijo. Si falta un dato que cambia el resultado (el dólar agencia cuando se mezclan pesos y dólares, la tasación del usado, el modelo exacto), preguntáselo en lugar de inventarlo.",
+    "- Jerga argentina: 'palo' o 'palos' son millones de pesos (20 palos = 20000000), 'luca' o 'lucas' son miles (5 lucas = 5000), 'k' es miles, y 'verdes', 'dólares' o 'USD' son dólares.",
+    "- La bonificación se aplica solo si el asesor te da el monto. Nunca la menciones ni la calcules por tu cuenta.",
+    "- Si el pedido es un ajuste ('ahora con 24 cuotas'), mirá antes el estado con ver_estado.",
+    "- Si pide financiar sin indicar línea ni plazo, activá la financiación, poné la prioridad que corresponda a lo que busca el cliente y recomendá una de las 3 mejores opciones que muestra el cotizador, con una frase que explique por qué.",
+    "- Las cuotas UVA son iniciales y se ajustan por inflación: aclaralo si recomendás una.",
+    "- Respondé en español rioplatense, corto: qué cargaste, el resultado y, si corresponde, tu recomendación. El mensaje de WhatsApp para el cliente queda armado más abajo en el cotizador.",
+    "- El asesor decide: presentá opciones, no decidas por él."
+  ].join("\n");
 
-        .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
-        .row span:last-child { font-weight: 500; font-variant-numeric: tabular-nums; }
-        .row.mut { color: var(--mut); }
-        .row.tot { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 15px; font-weight: 700; font-size: 18px; }
+  const MSG={
+    not_granted:"Para usar el asistente tenés que permitir que esta página use Claude. El cotizador sigue funcionando sin él.",
+    rate_limited:"Hiciste muchos pedidos seguidos o llegaste al límite de uso de tu cuenta. Probá de nuevo en un rato.",
+    session_expired:"Tu sesión venció. Volvé a iniciar sesión en Claude y probá de nuevo.",
+    refused:"El asistente no pudo procesar ese pedido. Reformulalo.",
+    empty_completion:"El asistente no devolvió respuesta. Reformulá el pedido.",
+    cancelled:"Detenido. Lo que ya se cargó queda en el cotizador."
+  };
 
-        .btn { 
-            display: block; 
-            width: 100%; 
-            padding: 12px; 
-            background: var(--acc); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-weight: 600; 
-            font-size: 15px;
-            cursor: pointer; 
-            margin-top: 15px;
-            transition: opacity 0.2s;
-        }
-        .btn:hover { opacity: 0.9; }
+  async function run(){
+    if(busy)return;
+    const q=$("aiin").value.trim();
+    out.hidden=false;
+    if(!q){out.textContent="Escribí qué pide el cliente.";return}
+    busy=true;go.disabled=true;stop.hidden=false;steps.textContent="";steps.hidden=true;
+    out.textContent="Pensando…";
+    ctl=new AbortController();
+    const msgs=[{role:"user",content:RULES}].concat(turns.slice(-6),[{role:"user",content:q}]);
+    try{
+      const r=await sample(msgs,{modelTier:"quick",signal:ctl.signal,tools:TOOLS,onText:({text})=>{out.textContent=text}});
+      turns.push({role:"user",content:q},{role:"assistant",content:r.text});
+      $("aiin").value="";
+      out.textContent=r.text+(r.truncated?"\n\nLa respuesta quedó cortada. Pedí menos cosas por vez.":"");
+    }catch(e){
+      const c=e&&e.code,partial=(e&&e.text)||"";
+      if(["sampling_disabled","not_declared","capability_disabled","capability_removed","tools_unavailable"].indexOf(c)>=0){$("ai").hidden=true;return}
+      out.textContent=(partial&&c!=="refused"?partial+"\n\n":"")+(MSG[c]||"El asistente no pudo responder. Lo que ya se cargó queda como está. Probá de nuevo.");
+    }finally{busy=false;go.disabled=false;stop.hidden=true;ctl=null}
+  }
 
-        .badge { 
-            display: inline-block; 
-            padding: 4px 10px; 
-            background: var(--accbg); 
-            color: var(--acc); 
-            border-radius: 20px; 
-            font-size: 12px; 
-            font-weight: 600; 
-        }
-
-        .code-box {
-            background: var(--bg);
-            border: 1px solid var(--line);
-            padding: 10px;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 14px;
-            text-align: center;
-            margin-top: 10px;
-            color: var(--acc);
-            font-weight: 600;
-            letter-spacing: 1px;
-        }
-    </style>
-</head>
-<body>
-    <main>
-        <h1>Cotizador BYD 0 km</h1>
-        <p class="sub">Lista de precios vigente · Financiación Banco Santander</p>
-
-        <div class="layout">
-            <!-- COLUMNA IZQUIERDA: FORMULARIO -->
-            <div>
-                <section>
-                    <h2>1. Vehículo</h2>
-                    <label>Modelo</label>
-                    <select>
-                        <option>Dolphin Mini EV GL</option>
-                        <option>Dolphin Mini EV GS</option>
-                        <option>Yuan Pro EV GL</option>
-                    </select>
-
-                    <label style="margin-top: 15px;">Bonificación</label>
-                    <select>
-                        <option>Sin bonificación</option>
-                        <option>Aplicar bonificación de lista</option>
-                    </select>
-
-                    <!-- Tarjeta visual del código disfrazado -->
-                    <div class="code-box" style="margin-top: 15px;">
-                        FC002AG262HC000
-                    </div>
-                </section>
-
-                <section>
-                    <h2>2. Qué entrega el cliente</h2>
-                    <label>Dólar agencia ($)</label>
-                    <input type="number" value="1450">
-                    
-                    <label style="margin-top: 15px;">Anticipo en Pesos ($)</label>
-                    <input type="number" value="0">
-                </section>
-            </div>
-
-            <!-- COLUMNA DERECHA: RESUMEN Y FINANCIACIÓN -->
-            <div>
-                <section style="border-color: var(--acc); background: var(--accbg);">
-                    <h2>Resumen de Cotización</h2>
-                    <div class="row"><span>Precio de Lista:</span> <span>$36.200.000</span></div>
-                    <div class="row mut"><span>Fletes y Formularios:</span> <span>$800.000</span></div>
-                    <div class="row mut"><span>Patentamiento:</span> <span>$2.381.960</span></div>
-                    <div class="row tot"><span>Total Auto:</span> <span>$39.381.960</span></div>
-                </section>
-
-                <section>
-                    <h2>3. Financiación</h2>
-                    <label>Línea Santander</label>
-                    <select>
-                        <option>Convenio BYD · Fija 0% (12 meses)</option>
-                        <option>Quebranto Concesionario · UVA 0% (36 meses)</option>
-                    </select>
-
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <div style="flex: 1;">
-                            <label>Cuota inicial</label>
-                            <div style="font-size: 24px; font-weight: 700; color: var(--acc);">$1.492.270</div>
-                        </div>
-                        <div style="flex: 1;">
-                            <label>Debe poner</label>
-                            <div style="font-size: 24px; font-weight: 700;">$4.000.000</div>
-                        </div>
-                    </div>
-                    <p style="font-size: 12px; color: var(--mut); margin-top: 10px;">* No incluye seguro obligatorio.</p>
-                </section>
-
-                <button class="btn">Guardar y Generar PDF</button>
-            </div>
-        </div>
-    </main>
-</body>
-</html>
+  const EJ=[
+    "Quiere una Dolphin Mini EV GS, patenta el concesionario, entrega 10 millones de anticipo y financia el resto.",
+    "Interesado en la Song Pro DM-I GS. Entrega un usado tasado en 12 millones de pesos. Dólar agencia 1.450. Quiere la cuota más baja posible.",
+    "Seal U DM-I GS, anticipo de USD 15.000, quiere financiar con el menor costo total. Dólar agencia 1.450."
+  ];
+  EJ.forEach((t,i)=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="chip";b.textContent="Ejemplo "+(i+1);
+    b.onclick=()=>{$("aiin").value=t;$("aiin").focus()};
+    $("aiex").appendChild(b);
+  });
+  go.onclick=run;
+  stop.onclick=()=>{if(ctl)ctl.abort()};
+  $("aiclr").onclick=()=>{if(busy)return;turns.length=0;$("aiin").value="";out.hidden=true;steps.hidden=true};
+  $("aiin").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();run()}});
+})();
+</script>
+</body></html>
