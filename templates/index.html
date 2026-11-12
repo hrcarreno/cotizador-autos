@@ -516,27 +516,47 @@ setBo();fillLines();
     cancelled:"Detenido. Lo que ya se cargó queda en el cotizador."
   };
 
-  async function run(){
+    async function run(){
     if(busy)return;
     const q=$("aiin").value.trim();
     out.hidden=false;
     if(!q){out.textContent="Escribí qué pide el cliente.";return}
+    
     busy=true;go.disabled=true;stop.hidden=false;steps.textContent="";steps.hidden=true;
     out.textContent="Pensando…";
-    ctl=new AbortController();
-    const msgs=[{role:"user",content:RULES}].concat(turns.slice(-6),[{role:"user",content:q}]);
-    try{
-      const r=await sample(msgs,{modelTier:"quick",signal:ctl.signal,tools:TOOLS,onText:({text})=>{out.textContent=text}});
-      turns.push({role:"user",content:q},{role:"assistant",content:r.text});
-      $("aiin").value="";
-      out.textContent=r.text+(r.truncated?"\n\nLa respuesta quedó cortada. Pedí menos cosas por vez.":"");
-    }catch(e){
-      const c=e&&e.code,partial=(e&&e.text)||"";
-      if(["sampling_disabled","not_declared","capability_disabled","capability_removed","tools_unavailable"].indexOf(c)>=0){$("ai").hidden=true;return}
-      out.textContent=(partial&&c!=="refused"?partial+"\n\n":"")+(MSG[c]||"El asistente no pudo responder. Lo que ya se cargó queda como está. Probá de nuevo.");
-    }finally{busy=false;go.disabled=false;stop.hidden=true;ctl=null}
-  }
 
+    try {
+        // Obtenemos el estado actual (como string) para pasárselo a la IA
+        const estadoStr = estado();
+        
+        const response = await fetch('/api/ia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: q, estado: estadoStr })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            out.textContent = "Error de IA: " + data.error;
+        } else {
+            // Parseamos el JSON que devolvió la IA
+            const datosIA = JSON.parse(data.respuesta);
+            
+            // Cargamos los datos en el cotizador usando la función existente
+            const cargado = cargar(datosIA);
+            step("Cargó: " + (cargado.join(" · ") || "nada nuevo"));
+            
+            // Mostramos la respuesta
+            out.textContent = "¡Datos cargados! Revisá el cotizador.";
+            $("aiin").value="";
+        }
+    } catch (e) {
+        out.textContent = "Error de conexión: " + e.message;
+    } finally {
+        busy=false;go.disabled=false;stop.hidden=true;
+    }
+  }
   const EJ=[
     "Quiere una Dolphin Mini EV GS, patenta el concesionario, entrega 10 millones de anticipo y financia el resto.",
     "Interesado en la Song Pro DM-I GS. Entrega un usado tasado en 12 millones de pesos. Dólar agencia 1.450. Quiere la cuota más baja posible.",
