@@ -369,11 +369,36 @@ async function run(){
             // El backend nos devuelve el JSON con los datos a cargar
             const datosIA = JSON.parse(data.respuesta);
             
-            // Función de carga (busca el modelo, etc)
+            // Función de carga mejorada (busca por palabras clave)
             const cargar = (a) => {
                 if(a.modelo){
-                    const idx = M.findIndex(m => m[0].toLowerCase().includes(a.modelo.toLowerCase()));
-                    if(idx >= 0) { $("mod").value = idx; setBo(); fillLines(); }
+                    const busq = a.modelo.toLowerCase();
+                    const idx = M.findIndex(m => {
+                        const nom = m[0].toLowerCase();
+                        // Busca que el modelo de la lista contenga las palabras clave
+                        if(busq.includes("dolphin") && nom.includes("dolphin")) {
+                            if(busq.includes("gs") && nom.includes("gs")) return true;
+                            if(busq.includes("gl") && nom.includes("gl")) return true;
+                            if(!busq.includes("gs") && !busq.includes("gl")) return true;
+                        }
+                        if(busq.includes("song") && nom.includes("song")) {
+                            if(busq.includes("pro") && nom.includes("pro")) return true;
+                        }
+                        if(busq.includes("yuan") && nom.includes("yuan")) {
+                            if(busq.includes("pro") && nom.includes("pro")) return true;
+                        }
+                        if(busq.includes("atto") && nom.includes("atto")) return true;
+                        if(busq.includes("seal") && nom.includes("seal")) return true;
+                        if(busq.includes("shark") && nom.includes("shark")) return true;
+                        if(busq.includes("ti7") && nom.includes("ti7")) return true;
+                        return false;
+                    });
+                    
+                    if(idx >= 0) { 
+                        $("mod").value = idx.toString(); 
+                        setBo(); 
+                        fillLines(); 
+                    }
                 }
                 if(a.anticipo){ $("s1").checked = true; $("ap").value = a.anticipo.toLocaleString("es-AR"); }
                 if(a.usado){ $("s2").checked = true; $("ta").value = a.usado.toLocaleString("es-AR"); }
