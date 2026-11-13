@@ -6,6 +6,7 @@ from openai import OpenAI
 import os
 import json
 from dotenv import load_dotenv
+from typing import List, Optional
 
 load_dotenv()
 
@@ -29,44 +30,61 @@ except Exception as e:
 def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
+class Mensaje(BaseModel):
+    role: str # "user" o "assistant"
+    content: str
+
 class PedidoIA(BaseModel):
     prompt: str
+    historial: Optional[List[Mensaje]] = []
 
 @app.post("/api/ia")
 async def procesar_ia(pedido: PedidoIA):
     try:
-        system_prompt = """Sos un asistente de ventas de autos en Argentina. Extraé datos del texto y devolvé SOLO un JSON válido.
+        system_prompt = """Sos un asistente de ventas de autos en Argentina. Tu objetivo es extraer datos del texto para armar una cotización.
         
-        Claves exactas:
+        Si el usuario menciona un monto de dinero (anticipo) pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar. No asumas nada.
+        
+        Si tenés todos los datos, devolvé un JSON con estas claves exactas:
         - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U", "Atto 2")
-        - "anticipo_pesos": número entero en pesos. 
-          REGLAS: Si el usuario dice "20 palos", devolver 20000000. Si dice "5 lucas", devolver 5000. Si usa el símbolo "$" SIN mencionar "dólares", asumí que son PESOS.
-        - "anticipo_usd": número entero en dólares. 
-          REGLAS: Si el usuario dice "20.000 dólares", "20.000 USD", "20k verdes" o "U$S 20.000", devolver 20000.
-        - "usado": número entero en pesos (si no menciona, devolver 0). Si menciona que el usado es en dólares, convertí a pesos usando el valor del dólar que mencione (o 1000 por defecto).
+        - "anticipo_pesos": número entero en pesos (si dice "20 palos", devolver 20000000)
+        - "anticipo_usd": número entero en dólares (si dice "20.000 dólares", devolver 20000)
+        - "usado": número entero en pesos (si no menciona, devolver 0)
         - "financiar": boolean (true si pide financiar, false si no)
-        - "aplicar_bonif": boolean (true si pide aplicar el descuento/bonificación máxima)
+        - "aplicar_bonif": boolean (true si pide aplicar descuento)
         
-        IMPORTANTE: 
-        1. Si el usuario menciona "dólares", "USD" o "verdes", el monto va en "anticipo_usd".
-        2. Si el usuario menciona "pesos", "palos", "lucas" o solo el símbolo "$", el monto va en "anticipo_pesos".
-        3. Devuelve estrictamente el objeto JSON, sin textos adicionales."""        
+        Si falta la moneda, devolvé un JSON con una sola clave:
+        - "pregunta": "Texto de la pregunta para el usuario (ej: ¿Los 20.000 son en pesos o en dólares?)"
+        
+        IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
+        
+        mensajes = [{"role": "system", "content": system_prompt}]
+        
+        # Agregamos el historial de la conversación
+        for msg in pedido.historial:
+            mensajes.append({"role": msg.role, "content": msg.content})
+            
+        # Agregamos el mensaje actual
+        mensajes.append({"role": "user", "content": pedido.prompt})
+
         response = client_ia.chat.completions.create(
             model="openai/gpt-oss-120b",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": pedido.prompt}
-            ],
+            messages=mensajes,
             response_format={ "type": "json_object" }
         )
         
         texto = response.choices[0].message.content
         datos = json.loads(texto)
         
-        # Normalizamos los datos por si la IA devuelve strings
+        # Si la IA devolvió una pregunta, la mandamos tal cual
+        if "pregunta" in datos:
+            return {"pregunta": datos["pregunta"]}
+        
+        # Si devolvió los datos, normalizamos
         resultado = {
             "modelo": str(datos.get("modelo", "")),
-            "anticipo": int(datos.get("anticipo", 0)),
+            "anticipo_pesos": int(datos.get("anticipo_pesos", 0)),
+            "anticipo_usd": int(datos.get("anticipo_usd", 0)),
             "usado": int(datos.get("usado", 0)),
             "financiar": bool(datos.get("financiar", False)),
             "aplicar_bonif": bool(datos.get("aplicar_bonif", False))
