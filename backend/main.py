@@ -38,14 +38,14 @@ async def procesar_ia(pedido: PedidoIA):
         system_prompt = """Sos un asistente de ventas de autos en Argentina. Extraé datos del texto y devolvé SOLO un JSON válido.
         
         Claves exactas:
-        - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U")
-        - "anticipo": número entero en pesos. 
-          REGLA DE ORO: Si el usuario dice "15 palos", debés devolver 15000000.
+        - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U", "Atto 2")
+        - "anticipo_pesos": número entero en pesos (si dice "20 palos", devolver 20000000)
+        - "anticipo_usd": número entero en dólares (si dice "20.000 dólares", devolver 20000)
         - "usado": número entero en pesos (si no menciona, devolver 0)
         - "financiar": boolean (true si pide financiar, false si no)
-        - "aplicar_bonif": boolean (true si pide aplicar el descuento/bonificación máxima, false si no)
+        - "aplicar_bonif": boolean (true si pide aplicar descuento)
         
-        IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
+        IMPORTANTE: Si el usuario menciona "dólares", el monto va en "anticipo_usd". Si menciona "pesos" o "palos", va en "anticipo_pesos"."""
         
         response = client_ia.chat.completions.create(
             model="openai/gpt-oss-120b",
