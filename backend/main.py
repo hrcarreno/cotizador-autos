@@ -39,14 +39,18 @@ async def procesar_ia(pedido: PedidoIA):
         
         Claves exactas:
         - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U", "Atto 2")
-        - "anticipo_pesos": número entero en pesos (si dice "20 palos", devolver 20000000)
-        - "anticipo_usd": número entero en dólares (si dice "20.000 dólares", devolver 20000)
-        - "usado": número entero en pesos (si no menciona, devolver 0)
+        - "anticipo_pesos": número entero en pesos. 
+          REGLAS: Si el usuario dice "20 palos", devolver 20000000. Si dice "5 lucas", devolver 5000. Si usa el símbolo "$" SIN mencionar "dólares", asumí que son PESOS.
+        - "anticipo_usd": número entero en dólares. 
+          REGLAS: Si el usuario dice "20.000 dólares", "20.000 USD", "20k verdes" o "U$S 20.000", devolver 20000.
+        - "usado": número entero en pesos (si no menciona, devolver 0). Si menciona que el usado es en dólares, convertí a pesos usando el valor del dólar que mencione (o 1000 por defecto).
         - "financiar": boolean (true si pide financiar, false si no)
-        - "aplicar_bonif": boolean (true si pide aplicar descuento)
+        - "aplicar_bonif": boolean (true si pide aplicar el descuento/bonificación máxima)
         
-        IMPORTANTE: Si el usuario menciona "dólares", el monto va en "anticipo_usd". Si menciona "pesos" o "palos", va en "anticipo_pesos"."""
-        
+        IMPORTANTE: 
+        1. Si el usuario menciona "dólares", "USD" o "verdes", el monto va en "anticipo_usd".
+        2. Si el usuario menciona "pesos", "palos", "lucas" o solo el símbolo "$", el monto va en "anticipo_pesos".
+        3. Devuelve estrictamente el objeto JSON, sin textos adicionales."""        
         response = client_ia.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
