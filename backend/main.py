@@ -31,7 +31,7 @@ def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
 class Mensaje(BaseModel):
-    role: str # "user" o "assistant"
+    role: str
     content: str
 
 class PedidoIA(BaseModel):
@@ -43,7 +43,7 @@ async def procesar_ia(pedido: PedidoIA):
     try:
         system_prompt = """Sos un asistente de ventas de autos en Argentina. Tu objetivo es extraer datos del texto para armar una cotización.
         
-        Si el usuario menciona un monto de dinero (anticipo) pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar. No asumas nada.
+        REGLA DE ORO: Si el usuario menciona un monto de dinero para el anticipo pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar. No asumas nada.
         
         Si tenés todos los datos, devolvé un JSON con estas claves exactas:
         - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U", "Atto 2")
@@ -53,18 +53,16 @@ async def procesar_ia(pedido: PedidoIA):
         - "financiar": boolean (true si pide financiar, false si no)
         - "aplicar_bonif": boolean (true si pide aplicar descuento)
         
-        Si falta la moneda, devolvé un JSON con una sola clave:
+        Si falta la moneda del anticipo, devolvé un JSON con una sola clave:
         - "pregunta": "Texto de la pregunta para el usuario (ej: ¿Los 20.000 son en pesos o en dólares?)"
         
         IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
         
         mensajes = [{"role": "system", "content": system_prompt}]
         
-        # Agregamos el historial de la conversación
         for msg in pedido.historial:
             mensajes.append({"role": msg.role, "content": msg.content})
             
-        # Agregamos el mensaje actual
         mensajes.append({"role": "user", "content": pedido.prompt})
 
         response = client_ia.chat.completions.create(
@@ -76,11 +74,9 @@ async def procesar_ia(pedido: PedidoIA):
         texto = response.choices[0].message.content
         datos = json.loads(texto)
         
-        # Si la IA devolvió una pregunta, la mandamos tal cual
         if "pregunta" in datos:
             return {"pregunta": datos["pregunta"]}
         
-        # Si devolvió los datos, normalizamos
         resultado = {
             "modelo": str(datos.get("modelo", "")),
             "anticipo_pesos": int(datos.get("anticipo_pesos", 0)),
