@@ -20,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONEXIONES ---
 try:
     supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
     client_ia = OpenAI(
@@ -34,12 +33,10 @@ except Exception as e:
 def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
-# --- ENDPOINTS PÚBLICOS (Para el cotizador) ---
-
+# --- ENDPOINTS PÚBLICOS ---
 @app.get("/api/config")
 async def get_config():
     res = supabase.table("configuracion_global").select("*").execute()
-    # Devuelve un diccionario simple: {"dolar_agencia": 1450}
     return {item["clave"]: item["valor"] for item in res.data}
 
 @app.get("/api/modelos")
@@ -50,15 +47,12 @@ async def get_modelos():
 @app.get("/api/lineas")
 async def get_lineas():
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
-    # Convertimos el JSONB de "plazos" a una lista de Python real
     for linea in res.data:
         if isinstance(linea["plazos"], str):
             linea["plazos"] = json.loads(linea["plazos"])
     return res.data
 
 # --- ENDPOINTS DE ADMINISTRACIÓN ---
-# (Nota: En un futuro cercano, acá validaremos el token del usuario Admin)
-
 class UpdateConfig(BaseModel):
     clave: str
     valor: float
@@ -80,7 +74,7 @@ async def update_linea(linea_id: int, data: UpdateLinea):
     }).eq("id", linea_id).execute()
     return {"status": "ok"}
 
-# --- ENDPOINT DE LA IA (Se mantiene igual) ---
+# --- ENDPOINT DE LA IA ---
 class Mensaje(BaseModel):
     role: str
     content: str
