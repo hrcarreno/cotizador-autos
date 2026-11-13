@@ -43,7 +43,9 @@ async def procesar_ia(pedido: PedidoIA):
     try:
         system_prompt = """Sos un asistente de ventas de autos en Argentina. Tu objetivo es extraer datos del texto para armar una cotización.
         
-        REGLA DE ORO: Si el usuario menciona un monto de dinero para el anticipo pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar. No asumas nada.
+        REGLAS DE ORO:
+        1. Si el usuario menciona un monto para el anticipo pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar.
+        2. Si el usuario menciona un modelo pero NO especifica la versión (GL o GS), DEBÉS preguntarle qué versión prefiere antes de continuar. No asumas ninguna.
         
         Si tenés todos los datos, devolvé un JSON con estas claves exactas:
         - "modelo": string (ej: "Dolphin Mini GS", "Song Pro", "Seal U", "Atto 2")
@@ -53,7 +55,7 @@ async def procesar_ia(pedido: PedidoIA):
         - "financiar": boolean (true si pide financiar, false si no)
         - "aplicar_bonif": boolean (true si pide aplicar descuento)
         
-        Si falta la moneda del anticipo, devolvé un JSON con una sola clave:
+        Si falta un dato o es ambiguo, devolvé un JSON con una sola clave:
         - "pregunta": "Texto de la pregunta para el usuario (ej: ¿Los 20.000 son en pesos o en dólares?)"
         
         IMPORTANTE: Devuelve estrictamente el objeto JSON, sin textos adicionales."""
@@ -86,6 +88,6 @@ async def procesar_ia(pedido: PedidoIA):
             "aplicar_bonif": bool(datos.get("aplicar_bonif", False))
         }
         
-        return {"respuesta": json.dumps(resultado)}
+        return {"respuesta": json.dumps(resultado), "mensaje": "Datos cargados exitosamente."}
     except Exception as e:
         return {"error": str(e)}
