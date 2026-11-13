@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from supabase import create_client, Client
 from openai import OpenAI
 import os
 import json
@@ -19,7 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- CONEXIONES ---
 try:
+    supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
     client_ia = OpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=os.getenv("GROQ_API_KEY")
@@ -27,21 +30,64 @@ try:
 except Exception as e:
     print(f"Error de conexión: {e}")
 
-
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
+# --- ENDPOINTS PÚBLICOS (Para el cotizador) ---
 
+@app.get("/api/config")
+async def get_config():
+    res = supabase.table("configuracion_global").select("*").execute()
+    # Devuelve un diccionario simple: {"dolar_agencia": 1450}
+    return {item["clave"]: item["valor"] for item in res.data}
+
+@app.get("/api/modelos")
+async def get_modelos():
+    res = supabase.table("modelos").select("*").eq("activo", True).order("id").execute()
+    return res.data
+
+@app.get("/api/lineas")
+async def get_lineas():
+    res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
+    # Convertimos el JSONB de "plazos" a una lista de Python real
+    for linea in res.data:
+        if isinstance(linea["plazos"], str):
+            linea["plazos"] = json.loads(linea["plazos"])
+    return res.data
+
+# --- ENDPOINTS DE ADMINISTRACIÓN ---
+# (Nota: En un futuro cercano, acá validaremos el token del usuario Admin)
+
+class UpdateConfig(BaseModel):
+    clave: str
+    valor: float
+
+@app.put("/api/admin/config")
+async def update_config(data: UpdateConfig):
+    supabase.table("configuracion_global").upsert({"clave": data.clave, "valor": data.valor}).execute()
+    return {"status": "ok"}
+
+class UpdateLinea(BaseModel):
+    plazos: list
+    activo: bool
+
+@app.put("/api/admin/lineas/{linea_id}")
+async def update_linea(linea_id: int, data: UpdateLinea):
+    supabase.table("lineas_financiacion").update({
+        "plazos": data.plazos,
+        "activo": data.activo
+    }).eq("id", linea_id).execute()
+    return {"status": "ok"}
+
+# --- ENDPOINT DE LA IA (Se mantiene igual) ---
 class Mensaje(BaseModel):
     role: str
     content: str
 
-
 class PedidoIA(BaseModel):
     prompt: str
     historial: Optional[List[Mensaje]] = []
-
 
 @app.post("/api/ia")
 async def procesar_ia(pedido: PedidoIA):
@@ -70,10 +116,8 @@ Si falta la moneda del anticipo (y el monto es mayor a 0) O la versión GL/GS, d
 IMPORTANTE: Devolvé estrictamente el objeto JSON, sin textos adicionales, sin markdown."""
 
         mensajes = [{"role": "system", "content": system_prompt}]
-
         for msg in pedido.historial:
             mensajes.append({"role": msg.role, "content": msg.content})
-
         mensajes.append({"role": "user", "content": pedido.prompt})
 
         response = client_ia.chat.completions.create(
