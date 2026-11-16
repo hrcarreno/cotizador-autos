@@ -113,15 +113,15 @@ async def exportar_datos():
     # --- MODELOS ---
     output.write("--- MODELOS ---\n")
     if modelos:
-        writer_m = csv.writer(output)
+        writer_m = csv.writer(output, lineterminator='\n')
         writer_m.writerow(["nombre", "moneda", "precio", "bonif", "fyf", "pat", "activo"])
         for m in modelos:
             writer_m.writerow([m["nombre"], m["moneda"], m["precio"], m["bonif"], m["fyf"], m["pat"], m["activo"]])
     
-    output.write("\n\n--- LINEAS ---\n")
+    output.write("\n--- LINEAS ---\n")
     # --- LINEAS ---
     if lineas:
-        writer_l = csv.writer(output)
+        writer_l = csv.writer(output, lineterminator='\n')
         writer_l.writerow(["nombre", "tipo", "uva", "aplica_a", "plazo", "tna", "quebranto", "tope", "activo"])
         for l in lineas:
             aplica_str = ",".join(l["aplica_a"]) if isinstance(l["aplica_a"], list) else ""
@@ -129,7 +129,7 @@ async def exportar_datos():
 
     output.seek(0)
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
+        io.BytesIO(output.getvalue().encode('utf-8-sig')), # <- UTF-8 con BOM para que Excel lo lea bien
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=datos_byd.csv"}
     )
@@ -138,7 +138,7 @@ async def exportar_datos():
 async def importar_datos(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        texto = contents.decode("utf-8")
+        texto = contents.decode("utf-8-sig")
         
         partes = texto.split("--- LINEAS ---")
         parte_modelos = partes[0].replace("--- MODELOS ---", "").strip()
