@@ -164,28 +164,32 @@ async def importar_datos(file: UploadFile = File(...)):
                 "bonif": float(row["bonif"] or 0),
                 "fyf": float(row["fyf"] or 0),
                 "pat": float(row["pat"] or 0),
-                "activo": row["activo"].lower() == 'true'
+                "activo": str(row["activo"]).lower() == 'true'
             }).execute()
 
-        # Cargar Líneas
+        # Cargar Líneas (con validación anti- None)
         reader_l = csv.DictReader(io.StringIO(parte_lineas))
         for row in reader_l:
             if not row.get("nombre"): continue
             
-            aplica_list = [x.strip() for x in row["aplica_a"].split(",") if x.strip()] if row["aplica_a"] else []
+            # Validación segura para 'aplica_a'
+            aplica_val = row.get("aplica_a")
+            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()] if aplica_val else []
+            
+            # Validación segura para 'tope'
             tope_val = row.get("tope")
-            tope_final = float(tope_val) if tope_val and tope_val.lower() != 'none' else None
+            tope_final = float(tope_val) if tope_val and str(tope_val).strip().lower() not in ['none', 'null', ''] else None
 
             supabase.table("lineas_financiacion").insert({
                 "nombre": row["nombre"],
                 "tipo": row["tipo"],
-                "uva": row["uva"].lower() == 'true',
+                "uva": str(row["uva"]).lower() == 'true',
                 "aplica_a": aplica_list,
                 "plazo": int(row["plazo"]),
                 "tna": float(row["tna"]),
                 "quebranto": float(row["quebranto"]),
                 "tope": tope_final,
-                "activo": row["activo"].lower() == 'true'
+                "activo": str(row["activo"]).lower() == 'true'
             }).execute()
 
         return {"status": "ok", "message": "Datos importados correctamente"}
