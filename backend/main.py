@@ -167,7 +167,7 @@ async def importar_datos(file: UploadFile = File(...)):
                 "activo": str(row["activo"]).lower() == 'true'
             }).execute()
 
-        # Cargar Líneas (con validación anti- None)
+        # Cargar Líneas
         reader_l = csv.DictReader(io.StringIO(parte_lineas))
         for row in reader_l:
             if not row.get("nombre"): continue
@@ -180,12 +180,18 @@ async def importar_datos(file: UploadFile = File(...)):
             tope_val = row.get("tope")
             tope_final = float(tope_val) if tope_val and str(tope_val).strip().lower() not in ['none', 'null', ''] else None
 
+            # Validación segura para 'plazo' (por si viene vacío)
+            try:
+                plazo_val = int(row["plazo"])
+            except (ValueError, TypeError):
+                plazo_val = 12 # Valor por defecto si falla
+
             supabase.table("lineas_financiacion").insert({
                 "nombre": row["nombre"],
                 "tipo": row["tipo"],
                 "uva": str(row["uva"]).lower() == 'true',
                 "aplica_a": aplica_list,
-                "plazo": int(row["plazo"]),
+                "plazo": plazo_val,
                 "tna": float(row["tna"]),
                 "quebranto": float(row["quebranto"]),
                 "tope": tope_final,
