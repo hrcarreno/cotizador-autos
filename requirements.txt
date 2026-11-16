@@ -8,3 +8,5 @@ streamlit-calendar
 Flask
 gunicorn
 python-dotenv
+python-multipart
+pandas
