@@ -67,13 +67,24 @@ async def get_lineas():
     agrupadas = {}
     for fila in lineas_planas:
         nombre = fila["nombre"]
+        
+        # --- ARREGLO: Aseguramos que aplica_a sea una lista ---
+        aplica_val = fila.get("aplica_a")
+        if isinstance(aplica_val, str):
+            # Si viene como string "Auto1,Auto2", lo convertimos a lista
+            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
+        elif isinstance(aplica_val, list):
+            aplica_list = aplica_val
+        else:
+            aplica_list = []
+
         if nombre not in agrupadas:
             agrupadas[nombre] = {
                 "id": fila["id"],
                 "nombre": nombre,
                 "tipo": fila["tipo"],
                 "uva": fila["uva"],
-                "aplica_a": fila["aplica_a"],
+                "aplica_a": aplica_list, # Usamos la lista validada
                 "activo": fila["activo"],
                 "plazos": []
             }
@@ -139,7 +150,6 @@ async def importar_datos(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         
-        # Intentamos leer en UTF-8. Si Excel lo guardó en ANSI/Latin-1, lo leemos así.
         try:
             texto = contents.decode("utf-8-sig")
         except UnicodeDecodeError:
@@ -149,11 +159,9 @@ async def importar_datos(file: UploadFile = File(...)):
         parte_modelos = partes[0].replace("--- MODELOS ---", "").strip()
         parte_lineas = partes[1].strip() if len(partes) > 1 else ""
 
-        # Borrar todo lo viejo
         supabase.table("modelos").delete().neq("id", 0).execute()
         supabase.table("lineas_financiacion").delete().neq("id", 0).execute()
 
-        # Cargar Modelos
         reader_m = csv.DictReader(io.StringIO(parte_modelos))
         for row in reader_m:
             if not row.get("nombre"): continue
@@ -167,24 +175,20 @@ async def importar_datos(file: UploadFile = File(...)):
                 "activo": str(row["activo"]).lower() == 'true'
             }).execute()
 
-        # Cargar Líneas
         reader_l = csv.DictReader(io.StringIO(parte_lineas))
         for row in reader_l:
             if not row.get("nombre"): continue
             
-            # Validación segura para 'aplica_a'
             aplica_val = row.get("aplica_a")
             aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()] if aplica_val else []
             
-            # Validación segura para 'tope'
             tope_val = row.get("tope")
             tope_final = float(tope_val) if tope_val and str(tope_val).strip().lower() not in ['none', 'null', ''] else None
 
-            # Validación segura para 'plazo' (por si viene vacío)
             try:
                 plazo_val = int(row["plazo"])
             except (ValueError, TypeError):
-                plazo_val = 12 # Valor por defecto si falla
+                plazo_val = 12
 
             supabase.table("lineas_financiacion").insert({
                 "nombre": row["nombre"],
