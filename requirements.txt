@@ -4,5 +4,5 @@ supabase
 openai
 python-dotenv
 python-multipart
-pandas
+pandas==2.3.3
 openpyxl
