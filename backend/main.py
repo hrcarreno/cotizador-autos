@@ -7,7 +7,7 @@ from openai import OpenAI
 import os
 import json
 import io
-import pandas as pd
+import csv
 from dotenv import load_dotenv
 from typing import List, Optional
 
@@ -37,7 +37,7 @@ def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
 # ==========================================
-# ENDPOINTS PÚBLICOS (Para el Frontend)
+# ENDPOINTS PÚBLICOS
 # ==========================================
 
 @app.get("/api/config")
@@ -52,7 +52,6 @@ async def get_modelos():
 
 @app.get("/api/lineas")
 async def get_lineas():
-    # Traemos todas las filas de la tabla plana y las agrupamos por nombre de línea
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
     lineas_planas = res.data
     
@@ -61,7 +60,7 @@ async def get_lineas():
         nombre = fila["nombre"]
         if nombre not in agrupadas:
             agrupadas[nombre] = {
-                "id": fila["id"], # Usamos el primer ID como referencia
+                "id": fila["id"],
                 "nombre": nombre,
                 "tipo": fila["tipo"],
                 "uva": fila["uva"],
@@ -70,7 +69,6 @@ async def get_lineas():
                 "plazos": []
             }
         
-        # Validación segura del tope sin usar Pandas
         tope_val = fila.get("tope")
         tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
 
@@ -98,71 +96,86 @@ async def update_config(data: UpdateConfig):
 
 @app.get("/api/admin/exportar")
 async def exportar_datos():
-    # 1. Traer Modelos
     modelos = supabase.table("modelos").select("*").execute().data
-    df_modelos = pd.DataFrame(modelos)
-    if not df_modelos.empty:
-        df_modelos = df_modelos[["nombre", "moneda", "precio", "bonif", "fyf", "pat", "activo"]]
-
-    # 2. Traer Líneas (Ya vienen planas desde la BD)
     lineas = supabase.table("lineas_financiacion").select("*").execute().data
-    df_lineas = pd.DataFrame(lineas)
-    if not df_lineas.empty:
-        df_lineas = df_lineas[["nombre", "tipo", "uva", "aplica_a", "plazo", "tna", "quebranto", "tope", "activo"]]
-        df_lineas["aplica_a"] = df_lineas["aplica_a"].apply(lambda x: ",".join(x) if isinstance(x, list) else "")
 
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_modelos.to_excel(writer, sheet_name='Modelos', index=False)
-        df_lineas.to_excel(writer, sheet_name='Financiacion', index=False)
+    # Armamos un solo archivo CSV con una sección para Modelos y otra para Líneas
+    output = io.StringIO()
     
+    # --- MODELOS ---
+    output.write("--- MODELOS ---\n")
+    if modelos:
+        writer_m = csv.writer(output)
+        writer_m.writerow(["nombre", "moneda", "precio", "bonif", "fyf", "pat", "activo"])
+        for m in modelos:
+            writer_m.writerow([m["nombre"], m["moneda"], m["precio"], m["bonif"], m["fyf"], m["pat"], m["activo"]])
+    
+    output.write("\n\n--- LINEAS ---\n")
+    # --- LINEAS ---
+    if lineas:
+        writer_l = csv.writer(output)
+        writer_l.writerow(["nombre", "tipo", "uva", "aplica_a", "plazo", "tna", "quebranto", "tope", "activo"])
+        for l in lineas:
+            aplica_str = ",".join(l["aplica_a"]) if isinstance(l["aplica_a"], list) else ""
+            writer_l.writerow([l["nombre"], l["tipo"], l["uva"], aplica_str, l["plazo"], l["tna"], l["quebranto"], l["tope"], l["activo"]])
+
     output.seek(0)
     return StreamingResponse(
-        output,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=datos_byd.xlsx"}
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=datos_byd.csv"}
     )
 
 @app.post("/api/admin/importar")
 async def importar_datos(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        xls = pd.ExcelFile(io.BytesIO(contents))
+        texto = contents.decode("utf-8")
         
-        df_modelos = pd.read_excel(xls, sheet_name='Modelos')
-        df_lineas = pd.read_excel(xls, sheet_name='Financiacion')
+        # Separar el archivo en dos partes
+        partes = texto.split("--- LINEAS ---")
+        parte_modelos = partes[0].replace("--- MODELOS ---", "").strip()
+        parte_lineas = partes[1].strip() if len(partes) > 1 else ""
 
-        # BORRAR TODO (Limpieza total para evitar duplicados)
+        # Borrar todo lo viejo
         supabase.table("modelos").delete().neq("id", 0).execute()
         supabase.table("lineas_financiacion").delete().neq("id", 0).execute()
 
-        # CARGAR MODELOS
-        for _, row in df_modelos.iterrows():
-            if pd.isna(row['nombre']): continue
+        # 1. Cargar Modelos
+        reader_m = csv.DictReader(io.StringIO(parte_modelos))
+        for row in reader_m:
+            if not row.get("nombre"): continue
             supabase.table("modelos").insert({
-                "nombre": str(row['nombre']),
-                "moneda": str(row['moneda']),
-                "precio": float(row['precio']),
-                "bonif": float(row['bonif'] or 0),
-                "fyf": float(row['fyf'] or 0),
-                "pat": float(row['pat'] or 0),
-                "activo": bool(row['activo'])
+                "nombre": row["nombre"],
+                "moneda": row["moneda"],
+                "precio": float(row["precio"]),
+                "bonif": float(row["bonif"] or 0),
+                "fyf": float(row["fyf"] or 0),
+                "pat": float(row["pat"] or 0),
+                "activo": row["activo"].lower() == 'true'
             }).execute()
 
-        # CARGAR LINEAS (Fila por fila, ya que ahora la tabla es plana)
-        for _, row in df_lineas.iterrows():
-            if pd.isna(row['nombre']): continue
-            aplica_list = str(row['aplica_a']).split(",") if not pd.isna(row['aplica_a']) else []
+        # 2. Cargar Líneas
+        reader_l = csv.DictReader(io.StringIO(parte_lineas))
+        for row in reader_l:
+            if not row.get("nombre"): continue
+            
+            # Convertimos la lista de modelos (que viene como texto "Auto1,Auto2") a un array real
+            aplica_list = [x.strip() for x in row["aplica_a"].split(",") if x.strip()] if row["aplica_a"] else []
+            
+            tope_val = row.get("tope")
+            tope_final = float(tope_val) if tope_val and tope_val.lower() != 'none' else None
+
             supabase.table("lineas_financiacion").insert({
-                "nombre": str(row['nombre']),
-                "tipo": str(row['tipo']),
-                "uva": bool(row['uva']),
+                "nombre": row["nombre"],
+                "tipo": row["tipo"],
+                "uva": row["uva"].lower() == 'true',
                 "aplica_a": aplica_list,
-                "plazo": int(row['plazo']),
-                "tna": float(row['tna']),
-                "quebranto": float(row['quebranto']),
-                "tope": float(row['tope']) if not pd.isna(row['tope']) else None,
-                "activo": bool(row['activo'])
+                "plazo": int(row["plazo"]),
+                "tna": float(row["tna"]),
+                "quebranto": float(row["quebranto"]),
+                "tope": tope_final,
+                "activo": row["activo"].lower() == 'true'
             }).execute()
 
         return {"status": "ok", "message": "Datos importados correctamente"}
