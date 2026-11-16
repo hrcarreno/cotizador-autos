@@ -129,7 +129,7 @@ async def exportar_datos():
 
     output.seek(0)
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8-sig')), # <- UTF-8 con BOM para que Excel lo lea bien
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=datos_byd.csv"}
     )
@@ -138,15 +138,22 @@ async def exportar_datos():
 async def importar_datos(file: UploadFile = File(...)):
     try:
         contents = await file.read()
-        texto = contents.decode("utf-8-sig")
+        
+        # Intentamos leer en UTF-8. Si Excel lo guardó en ANSI/Latin-1, lo leemos así.
+        try:
+            texto = contents.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            texto = contents.decode("latin-1")
         
         partes = texto.split("--- LINEAS ---")
         parte_modelos = partes[0].replace("--- MODELOS ---", "").strip()
         parte_lineas = partes[1].strip() if len(partes) > 1 else ""
 
+        # Borrar todo lo viejo
         supabase.table("modelos").delete().neq("id", 0).execute()
         supabase.table("lineas_financiacion").delete().neq("id", 0).execute()
 
+        # Cargar Modelos
         reader_m = csv.DictReader(io.StringIO(parte_modelos))
         for row in reader_m:
             if not row.get("nombre"): continue
@@ -160,6 +167,7 @@ async def importar_datos(file: UploadFile = File(...)):
                 "activo": row["activo"].lower() == 'true'
             }).execute()
 
+        # Cargar Líneas
         reader_l = csv.DictReader(io.StringIO(parte_lineas))
         for row in reader_l:
             if not row.get("nombre"): continue
