@@ -2,7 +2,6 @@ import subprocess
 import sys
 import importlib.util
 
-# Verificar si python-multipart está instalado, si no, instalarlo
 if importlib.util.find_spec("python_multipart") is None:
     print("Instalando python-multipart...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
@@ -68,10 +67,11 @@ async def get_lineas():
     for fila in lineas_planas:
         nombre = fila["nombre"]
         
-        # --- ARREGLO: Forzar que aplica_a sea siempre una lista ---
+        # --- ARREGLO CLAVE: Validar si aplica_a es lista o string ---
         aplica_val = fila.get("aplica_a")
         if isinstance(aplica_val, str):
-            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
+            # Si viene como string (por ejemplo "{Dolphin Mini,Song Pro}"), lo limpiamos
+            aplica_list = [x.strip() for x in aplica_val.replace("{", "").replace("}", "").split(",") if x.strip()]
         elif isinstance(aplica_val, list):
             aplica_list = aplica_val
         else:
@@ -178,8 +178,11 @@ async def importar_datos(file: UploadFile = File(...)):
         for row in reader_l:
             if not row.get("nombre"): continue
             
-            aplica_val = row.get("aplica_a")
-            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()] if aplica_val else []
+            # --- ARREGLO CLAVE: Convertir el string en una lista real para Supabase ---
+            aplica_val = row.get("aplica_a", "")
+            # Limpiamos comillas extras que puedan haber quedado
+            aplica_val = aplica_val.strip('"').strip("'")
+            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
             
             tope_val = row.get("tope")
             tope_final = float(tope_val) if tope_val and str(tope_val).strip().lower() not in ['none', 'null', ''] else None
@@ -193,7 +196,7 @@ async def importar_datos(file: UploadFile = File(...)):
                 "nombre": row["nombre"],
                 "tipo": row["tipo"],
                 "uva": str(row["uva"]).lower() == 'true',
-                "aplica_a": aplica_list,
+                "aplica_a": aplica_list, # Acá va la lista
                 "plazo": plazo_val,
                 "tna": float(row["tna"]),
                 "quebranto": float(row["quebranto"]),
