@@ -73,7 +73,8 @@ async def get_lineas():
             int(fila["plazo"]),
             float(fila["tna"]),
             float(fila["quebranto"]),
-            float(fila["tope"]) if pd.notna(fila["tope"]) else None
+            tope_val = fila.get("tope")
+            tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
         ])
     
     return list(agrupadas.values())
