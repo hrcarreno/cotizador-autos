@@ -99,7 +99,6 @@ async def exportar_datos():
     modelos = supabase.table("modelos").select("*").execute().data
     lineas = supabase.table("lineas_financiacion").select("*").execute().data
 
-    # Armamos un solo archivo CSV con una sección para Modelos y otra para Líneas
     output = io.StringIO()
     
     # --- MODELOS ---
@@ -132,16 +131,13 @@ async def importar_datos(file: UploadFile = File(...)):
         contents = await file.read()
         texto = contents.decode("utf-8")
         
-        # Separar el archivo en dos partes
         partes = texto.split("--- LINEAS ---")
         parte_modelos = partes[0].replace("--- MODELOS ---", "").strip()
         parte_lineas = partes[1].strip() if len(partes) > 1 else ""
 
-        # Borrar todo lo viejo
         supabase.table("modelos").delete().neq("id", 0).execute()
         supabase.table("lineas_financiacion").delete().neq("id", 0).execute()
 
-        # 1. Cargar Modelos
         reader_m = csv.DictReader(io.StringIO(parte_modelos))
         for row in reader_m:
             if not row.get("nombre"): continue
@@ -155,14 +151,11 @@ async def importar_datos(file: UploadFile = File(...)):
                 "activo": row["activo"].lower() == 'true'
             }).execute()
 
-        # 2. Cargar Líneas
         reader_l = csv.DictReader(io.StringIO(parte_lineas))
         for row in reader_l:
             if not row.get("nombre"): continue
             
-            # Convertimos la lista de modelos (que viene como texto "Auto1,Auto2") a un array real
             aplica_list = [x.strip() for x in row["aplica_a"].split(",") if x.strip()] if row["aplica_a"] else []
-            
             tope_val = row.get("tope")
             tope_final = float(tope_val) if tope_val and tope_val.lower() != 'none' else None
 
