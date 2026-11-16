@@ -37,7 +37,7 @@ def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
 # ==========================================
-# ENDPOINTS PÚBLICOS
+# ENDPOINTS PÚBLICOS (Para el Frontend)
 # ==========================================
 
 @app.get("/api/config")
@@ -52,11 +52,31 @@ async def get_modelos():
 
 @app.get("/api/lineas")
 async def get_lineas():
+    # Traemos todas las filas de la tabla plana y las agrupamos por nombre de línea
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
-    for linea in res.data:
-        if isinstance(linea["plazos"], str):
-            linea["plazos"] = json.loads(linea["plazos"])
-    return res.data
+    lineas_planas = res.data
+    
+    agrupadas = {}
+    for fila in lineas_planas:
+        nombre = fila["nombre"]
+        if nombre not in agrupadas:
+            agrupadas[nombre] = {
+                "id": fila["id"], # Usamos el primer ID como referencia
+                "nombre": nombre,
+                "tipo": fila["tipo"],
+                "uva": fila["uva"],
+                "aplica_a": fila["aplica_a"],
+                "activo": fila["activo"],
+                "plazos": []
+            }
+        agrupadas[nombre]["plazos"].append([
+            int(fila["plazo"]),
+            float(fila["tna"]),
+            float(fila["quebranto"]),
+            float(fila["tope"]) if pd.notna(fila["tope"]) else None
+        ])
+    
+    return list(agrupadas.values())
 
 # ==========================================
 # ENDPOINTS DE ADMINISTRACIÓN
@@ -71,41 +91,25 @@ async def update_config(data: UpdateConfig):
     supabase.table("configuracion_global").upsert({"clave": data.clave, "valor": data.valor}).execute()
     return {"status": "ok"}
 
-class UpdateLinea(BaseModel):
-    plazos: list
-    activo: bool
-
-@app.put("/api/admin/lineas/{linea_id}")
-async def update_linea(linea_id: int, data: UpdateLinea):
-    supabase.table("lineas_financiacion").update({
-        "plazos": data.plazos,
-        "activo": data.activo
-    }).eq("id", linea_id).execute()
-    return {"status": "ok"}
-
-# ==========================================
-# IMPORTAR / EXPORTAR EXCEL
-# ==========================================
-
 @app.get("/api/admin/exportar")
 async def exportar_datos():
+    # 1. Traer Modelos
     modelos = supabase.table("modelos").select("*").execute().data
-    lineas = supabase.table("lineas_financiacion").select("*").execute().data
-
     df_modelos = pd.DataFrame(modelos)
     if not df_modelos.empty:
         df_modelos = df_modelos[["nombre", "moneda", "precio", "bonif", "fyf", "pat", "activo"]]
 
+    # 2. Traer Líneas (Ya vienen planas desde la BD)
+    lineas = supabase.table("lineas_financiacion").select("*").execute().data
     df_lineas = pd.DataFrame(lineas)
     if not df_lineas.empty:
-        df_lineas = df_lineas[["nombre", "tipo", "uva", "aplica_a", "plazos", "activo"]]
+        df_lineas = df_lineas[["nombre", "tipo", "uva", "aplica_a", "plazo", "tna", "quebranto", "tope", "activo"]]
         df_lineas["aplica_a"] = df_lineas["aplica_a"].apply(lambda x: ",".join(x) if isinstance(x, list) else "")
-        df_lineas["plazos"] = df_lineas["plazos"].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else str(x))
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_modelos.to_excel(writer, sheet_name='Modelos', index=False)
-        df_lineas.to_excel(writer, sheet_name='Lineas', index=False)
+        df_lineas.to_excel(writer, sheet_name='Financiacion', index=False)
     
     output.seek(0)
     return StreamingResponse(
@@ -120,15 +124,14 @@ async def importar_datos(file: UploadFile = File(...)):
         contents = await file.read()
         xls = pd.ExcelFile(io.BytesIO(contents))
         
-        # 1. Leer las hojas
         df_modelos = pd.read_excel(xls, sheet_name='Modelos')
-        df_lineas = pd.read_excel(xls, sheet_name='Lineas')
+        df_lineas = pd.read_excel(xls, sheet_name='Financiacion')
 
-        # 2. BORRAR TODO (Para evitar duplicados)
+        # BORRAR TODO (Limpieza total para evitar duplicados)
         supabase.table("modelos").delete().neq("id", 0).execute()
         supabase.table("lineas_financiacion").delete().neq("id", 0).execute()
 
-        # 3. CARGAR MODELOS
+        # CARGAR MODELOS
         for _, row in df_modelos.iterrows():
             if pd.isna(row['nombre']): continue
             supabase.table("modelos").insert({
@@ -141,17 +144,19 @@ async def importar_datos(file: UploadFile = File(...)):
                 "activo": bool(row['activo'])
             }).execute()
 
-        # 4. CARGAR LINEAS
+        # CARGAR LINEAS (Fila por fila, ya que ahora la tabla es plana)
         for _, row in df_lineas.iterrows():
             if pd.isna(row['nombre']): continue
-            plazos_json = eval(str(row['plazos'])) if not pd.isna(row['plazos']) else []
             aplica_list = str(row['aplica_a']).split(",") if not pd.isna(row['aplica_a']) else []
             supabase.table("lineas_financiacion").insert({
                 "nombre": str(row['nombre']),
                 "tipo": str(row['tipo']),
                 "uva": bool(row['uva']),
                 "aplica_a": aplica_list,
-                "plazos": plazos_json,
+                "plazo": int(row['plazo']),
+                "tna": float(row['tna']),
+                "quebranto": float(row['quebranto']),
+                "tope": float(row['tope']) if not pd.isna(row['tope']) else None,
                 "activo": bool(row['activo'])
             }).execute()
 
@@ -162,7 +167,6 @@ async def importar_datos(file: UploadFile = File(...)):
 # ==========================================
 # ASISTENTE IA
 # ==========================================
-
 class Mensaje(BaseModel):
     role: str
     content: str
