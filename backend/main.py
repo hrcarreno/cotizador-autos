@@ -69,12 +69,16 @@ async def get_lineas():
                 "activo": fila["activo"],
                 "plazos": []
             }
+        
+        # Validación segura del tope sin usar Pandas
+        tope_val = fila.get("tope")
+        tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
+
         agrupadas[nombre]["plazos"].append([
             int(fila["plazo"]),
             float(fila["tna"]),
             float(fila["quebranto"]),
-            tope_val = fila.get("tope")
-            tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
+            tope_final
         ])
     
     return list(agrupadas.values())
