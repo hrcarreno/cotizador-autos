@@ -1,12 +1,8 @@
-streamlit
-pandas
-openai
+fastapi
+uvicorn
 supabase
-fpdf2
-streamlit-js-eval
-streamlit-calendar
-Flask
-gunicorn
+openai
 python-dotenv
 python-multipart
 pandas
+openpyxl
