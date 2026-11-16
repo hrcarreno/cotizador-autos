@@ -3,4 +3,4 @@ uvicorn
 supabase
 openai
 python-dotenv
-python-multipart
+python-multipart==0.0.12
