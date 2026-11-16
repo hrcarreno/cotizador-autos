@@ -68,10 +68,9 @@ async def get_lineas():
     for fila in lineas_planas:
         nombre = fila["nombre"]
         
-        # --- ARREGLO: Aseguramos que aplica_a sea una lista ---
+        # --- ARREGLO: Forzar que aplica_a sea siempre una lista ---
         aplica_val = fila.get("aplica_a")
         if isinstance(aplica_val, str):
-            # Si viene como string "Auto1,Auto2", lo convertimos a lista
             aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
         elif isinstance(aplica_val, list):
             aplica_list = aplica_val
@@ -84,7 +83,7 @@ async def get_lineas():
                 "nombre": nombre,
                 "tipo": fila["tipo"],
                 "uva": fila["uva"],
-                "aplica_a": aplica_list, # Usamos la lista validada
+                "aplica_a": aplica_list,
                 "activo": fila["activo"],
                 "plazos": []
             }
