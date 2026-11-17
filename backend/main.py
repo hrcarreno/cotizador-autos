@@ -2,6 +2,7 @@ import subprocess
 import sys
 import importlib.util
 
+# Verificar si python-multipart está instalado, si no, instalarlo
 if importlib.util.find_spec("python_multipart") is None:
     print("Instalando python-multipart...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
@@ -60,45 +61,10 @@ async def get_modelos():
 
 @app.get("/api/lineas")
 async def get_lineas():
+    # Devolvemos las 42 filas crudas, sin agrupar.
+    # El Frontend se encarga de agrupar por nombre.
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
-    lineas_planas = res.data
-    
-    agrupadas = {}
-    for fila in lineas_planas:
-        nombre = fila["nombre"]
-        
-        # --- ARREGLO CLAVE: Validar si aplica_a es lista o string ---
-        aplica_val = fila.get("aplica_a")
-        if isinstance(aplica_val, str):
-            # Si viene como string (por ejemplo "{Dolphin Mini,Song Pro}"), lo limpiamos
-            aplica_list = [x.strip() for x in aplica_val.replace("{", "").replace("}", "").split(",") if x.strip()]
-        elif isinstance(aplica_val, list):
-            aplica_list = aplica_val
-        else:
-            aplica_list = []
-
-        if nombre not in agrupadas:
-            agrupadas[nombre] = {
-                "id": fila["id"],
-                "nombre": nombre,
-                "tipo": fila["tipo"],
-                "uva": fila["uva"],
-                "aplica_a": aplica_list,
-                "activo": fila["activo"],
-                "plazos": []
-            }
-        
-        tope_val = fila.get("tope")
-        tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
-
-        agrupadas[nombre]["plazos"].append([
-            int(fila["plazo"]),
-            float(fila["tna"]),
-            float(fila["quebranto"]),
-            tope_final
-        ])
-    
-    return list(agrupadas.values())
+    return res.data
 
 # ==========================================
 # ENDPOINTS DE ADMINISTRACIÓN
@@ -178,9 +144,7 @@ async def importar_datos(file: UploadFile = File(...)):
         for row in reader_l:
             if not row.get("nombre"): continue
             
-            # --- ARREGLO CLAVE: Convertir el string en una lista real para Supabase ---
             aplica_val = row.get("aplica_a", "")
-            # Limpiamos comillas extras que puedan haber quedado
             aplica_val = aplica_val.strip('"').strip("'")
             aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
             
@@ -196,7 +160,7 @@ async def importar_datos(file: UploadFile = File(...)):
                 "nombre": row["nombre"],
                 "tipo": row["tipo"],
                 "uva": str(row["uva"]).lower() == 'true',
-                "aplica_a": aplica_list, # Acá va la lista
+                "aplica_a": aplica_list,
                 "plazo": plazo_val,
                 "tna": float(row["tna"]),
                 "quebranto": float(row["quebranto"]),
