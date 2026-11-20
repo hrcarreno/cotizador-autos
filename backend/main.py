@@ -1,13 +1,5 @@
-import subprocess
-import sys
-import importlib.util
-
-if importlib.util.find_spec("python_multipart") is None:
-    print("Instalando python-multipart...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
-
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+from fastAPI.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
@@ -63,12 +55,9 @@ async def get_lineas():
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
     lineas_planas = res.data
     
-    # --- AGRUPACIÓN EN EL BACKEND ---
     agrupadas = {}
     for fila in lineas_planas:
         nombre = fila["nombre"]
-        
-        # Convertir aplica_a a lista si es necesario
         aplica_val = fila.get("aplica_a")
         if isinstance(aplica_val, str):
             aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
@@ -99,7 +88,6 @@ async def get_lineas():
         ])
     
     return list(agrupadas.values())
-# --- FIN AGRUPACIÓN ---
 
 # ==========================================
 # ENDPOINTS DE ADMINISTRACIÓN
