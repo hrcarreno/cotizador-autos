@@ -6,7 +6,7 @@ if importlib.util.find_spec("python_multipart") is None:
     print("Instalando python-multipart...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "python-multipart"])
 
-from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -45,31 +45,6 @@ def read_root():
     return {"status": "ok", "message": "API del Cotizador funcionando"}
 
 # ==========================================
-# ENDPOINTS DE USUARIO Y AUTENTICACIÓN
-# ==========================================
-
-@app.get("/api/usuarios/me")
-async def get_current_user(authorization: str = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autorizado")
-    token = authorization.replace("Bearer ", "")
-    
-    try:
-        # Validar el token con Supabase Auth
-        user_response = supabase.auth.get_user(token)
-        user_email = user_response.user.email
-        
-        # Buscar el perfil en la tabla perfiles
-        perfil_res = supabase.table("perfiles").select("*").eq("email", user_email).execute()
-        
-        if not perfil_res.data:
-            return {"email": user_email, "rol": "Usuario"} # Rol por defecto
-            
-        return perfil_res.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
-
-# ==========================================
 # ENDPOINTS PÚBLICOS
 # ==========================================
 
@@ -86,7 +61,45 @@ async def get_modelos():
 @app.get("/api/lineas")
 async def get_lineas():
     res = supabase.table("lineas_financiacion").select("*").eq("activo", True).execute()
-    return res.data
+    lineas_planas = res.data
+    
+    # --- AGRUPACIÓN EN EL BACKEND ---
+    agrupadas = {}
+    for fila in lineas_planas:
+        nombre = fila["nombre"]
+        
+        # Convertir aplica_a a lista si es necesario
+        aplica_val = fila.get("aplica_a")
+        if isinstance(aplica_val, str):
+            aplica_list = [x.strip() for x in aplica_val.split(",") if x.strip()]
+        elif isinstance(aplica_val, list):
+            aplica_list = aplica_val
+        else:
+            aplica_list = []
+
+        if nombre not in agrupadas:
+            agrupadas[nombre] = {
+                "id": fila["id"],
+                "nombre": nombre,
+                "tipo": fila["tipo"],
+                "uva": fila["uva"],
+                "aplica_a": aplica_list,
+                "activo": fila["activo"],
+                "plazos": []
+            }
+        
+        tope_val = fila.get("tope")
+        tope_final = float(tope_val) if tope_val is not None and str(tope_val).strip() != "" else None
+
+        agrupadas[nombre]["plazos"].append([
+            int(fila["plazo"]),
+            float(fila["tna"]),
+            float(fila["quebranto"]),
+            tope_final
+        ])
+    
+    return list(agrupadas.values())
+# --- FIN AGRUPACIÓN ---
 
 # ==========================================
 # ENDPOINTS DE ADMINISTRACIÓN
@@ -242,7 +255,27 @@ class PedidoIA(BaseModel):
 async def procesar_ia(pedido: PedidoIA):
     try:
         system_prompt = """Sos un asistente de ventas de autos BYD en Argentina. Tu objetivo es extraer datos del texto para armar una cotización.
-... (el resto del prompt de IA queda igual) ..."""
+
+REGLAS DE ORO (OBLIGATORIAS):
+1. Si el usuario menciona un monto de dinero para el anticipo pero NO especifica si es en pesos o en dólares, DEBÉS preguntarle antes de continuar. No asumas nada.
+2. Si el usuario menciona un modelo pero NO especifica la versión (GL o GS) Y el modelo tiene ambas versiones (Dolphin Mini, Yuan Pro, Song Pro), DEBÉS preguntarle qué versión prefiere. No asumas.
+3. Si el usuario dice "dólares", "USD", "verdes", "U$S", "lucas verdes" → el monto va en "anticipo_usd".
+4. Si dice "pesos", "palos", "lucas", o solo el símbolo "$" sin aclarar dólares → va en "anticipo_pesos". "1 palo" = 1.000.000, "1 luca" = 1.000.
+5. Si el usuario ya respondió la pregunta en el historial, NO vuelvas a preguntar; usá esa respuesta.
+6. Si el usuario dice "mínimo anticipo", "sin anticipo", "nada de anticipo", "financia todo" o similar, significa que el anticipo es CERO. Devolvé "anticipo_pesos": 0 y "anticipo_usd": 0. En este caso, NO preguntes la moneda, porque el monto es 0.
+
+Si tenés TODOS los datos, devolvé un JSON con estas claves exactas:
+- "modelo": string (ej: "Dolphin Mini GS", "Song Pro GS", "Seal U GS", "Atto 2 GS", "Yuan Pro GL", "SHARK GS", "TI7 GS", "Seal 5")
+- "anticipo_pesos": número entero en pesos (si no menciona o es mínimo, 0)
+- "anticipo_usd": número entero en dólares (si no menciona o es mínimo, 0)
+- "usado": número entero en pesos (si no menciona, 0)
+- "financiar": boolean (true si pide financiar, false si no)
+- "aplicar_bonif": boolean (true si pide aplicar el descuento máximo)
+
+Si falta la moneda del anticipo (y el monto es mayor a 0) O la versión GL/GS, devolvé un JSON con UNA SOLA CLAVE:
+- "pregunta": "Texto corto y claro de la pregunta (ej: ¿Los 20.000 son en pesos o en dólares?)"
+
+IMPORTANTE: Devolvé estrictamente el objeto JSON, sin textos adicionales, sin markdown."""
 
         mensajes = [{"role": "system", "content": system_prompt}]
         for msg in pedido.historial:
